@@ -1,0 +1,1069 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="勤務表"><meta name="theme-color" content="#0b3c8c">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><link rel="icon" href="icon-192.png">
+<style>:root{color-scheme:light;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head><body>
+<title>勤務スケジュール</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: one-screen viewer. Triton-blue header with a Mohican-blue livery stripe, month tabs on the left, import on the right.
+   Unfolded iPhone Duo = two-page spread split at a table rule; folded or portrait = one column. */
+:root{
+  --triton:#0b3c8c; --triton-deep:#072a66; --ground:#061633; --mohican:#2aa0dc; --mohican-soft:#d8eefa;
+  --draft:#f2a93b; --ink:#0d1b33; --paper:#ffffff; --mist:#eef3f9; --muted:#6a7a92; --line:#d6e0ec; --danger:#c7333f;
+  --sans:"Zen Kaku Gothic New",-apple-system,"Hiragino Sans",system-ui,sans-serif;
+  --num:"Barlow Semi Condensed","Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;background:var(--ground);color:#fff;overscroll-behavior:none}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--triton)}
+
+header{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);z-index:8;background:var(--triton);
+  padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));
+  display:flex;align-items:center;gap:10px;height:52px;box-shadow:inset 0 -3px 0 var(--mohican)}
+.brandmark{display:flex;flex-direction:column;line-height:1;padding-right:10px;border-right:1px solid rgba(255,255,255,.22)}
+.brandmark b{font-family:var(--num);font-weight:700;font-size:20px;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.brandmark span{font-size:9px;letter-spacing:.18em;color:#bcd6f2;margin-top:3px}
+.tabs{flex:1;min-width:0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-bottom:3px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{font:inherit;color:#cfe0f5;background:none;border:0;padding:6px 10px 5px;border-radius:8px;cursor:pointer;white-space:nowrap;display:flex;align-items:baseline;gap:1px}
+.tab .m{font-family:var(--num);font-weight:600;font-size:20px;font-variant-numeric:tabular-nums}
+.tab .u{font-size:12px}
+.tab .y{font-family:var(--num);font-size:11px;opacity:.7;margin-right:3px}
+.tab[aria-selected="true"]{background:#fff;color:var(--triton)}
+.import{font:inherit;font-size:13px;font-weight:700;color:var(--triton);background:#fff;border:0;border-radius:999px;padding:8px 14px;cursor:pointer;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.import svg{width:15px;height:15px}
+button:focus-visible,label:focus-within,input:focus-visible{outline:2px solid var(--mohican);outline-offset:2px}
+
+#stage{position:fixed;left:var(--side,0px);right:0;bottom:0;top:calc(env(safe-area-inset-top,0px) + 52px + 30px);overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;
+  padding:10px env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);box-sizing:border-box}
+#content{margin:0 auto;display:flex;gap:var(--gap,0px);align-items:flex-start;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.half{flex:1 1 0;min-width:0;overflow:hidden;border-radius:4px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.half img{display:block;width:100%;height:auto;pointer-events:none}
+.empty{max-width:420px;margin:12vh auto 0;text-align:center;color:#bcd6f2;padding-inline:24px;line-height:1.7}
+.empty b{display:block;color:#fff;font-size:18px;margin-bottom:6px}
+
+.bar{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:2px;padding:5px;
+  background:rgba(7,42,102,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(42,160,220,.35);border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.4);transition:opacity .25s;z-index:5}
+.hide{opacity:0;pointer-events:none}
+.bar button{font:inherit;font-size:14px;color:#fff;background:none;border:0;padding:8px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.bar button:active{background:rgba(255,255,255,.12)}
+.bar button[aria-pressed="true"]{background:var(--mohican);color:#fff}
+#zoomv{font-family:var(--num);font-weight:600;font-variant-numeric:tabular-nums;color:#bcd6f2;min-width:3.4em}
+
+.info{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 52px);height:30px;z-index:7;background:var(--triton-deep);display:flex;align-items:center;gap:12px;
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));font-size:11px;color:#9fbde0;letter-spacing:.03em;white-space:nowrap;overflow:hidden}
+#meta{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sync{flex:none;display:flex;align-items:center;gap:5px;font-size:10px;color:#bcd6f2;margin-left:auto}
+.nextplan+.sync{margin-left:6px}
+.sync i{width:7px;height:7px;border-radius:50%;background:#7d8896}
+.sync[data-s="ok"] i{background:#4fd18a}.sync[data-s="busy"] i{background:var(--mohican);animation:pulse 1s infinite alternate}
+.sync[data-s="offline"] i{background:var(--draft)}.sync[data-s="error"] i{background:#ff6b78}
+@keyframes pulse{to{opacity:.3}}
+@media (max-width:430px){#syncT{display:none}}
+@media (prefers-reduced-motion:reduce){.sync i{animation:none}}
+.info b{font-family:var(--num);font-weight:600;font-size:13px;color:#d9e8f8}
+.nextplan{font:inherit;font-size:12px;color:#fff;background:rgba(42,160,220,.22);border:1px solid rgba(42,160,220,.5);border-radius:999px;padding:2px 10px;cursor:pointer;margin-left:auto;min-width:0;max-width:62%;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
+.nextplan b{color:#fff;margin-right:4px}
+.import.ghost{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)}
+@media (max-width:430px){.import.ghost .lbl{display:none}.import.ghost{padding:8px 10px}}
+.sep{width:1px;align-self:stretch;margin:6px 2px;background:rgba(255,255,255,.2)}
+.badge{display:inline-block;min-width:16px;margin-left:5px;padding:0 5px;border-radius:999px;background:var(--mohican);font-family:var(--num);font-weight:700;font-size:11px;line-height:16px;text-align:center}
+.planform{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:12px;background:var(--mist)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field input[type=date],.field input[type=time],.field input[type=text]{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color-scheme:light;min-width:0;width:100%;box-sizing:border-box}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips label{cursor:pointer}
+.chips input{position:absolute;opacity:0;width:1px;height:1px}
+.chips span{display:inline-block;font-size:13px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+.chips input:checked+span{background:var(--triton);border-color:var(--triton);color:#fff}
+.chips input:focus-visible+span{outline:2px solid var(--mohican);outline-offset:2px}
+.plist{display:flex;flex-direction:column;gap:2px}
+.pday{display:grid;grid-template-columns:62px 1fr;gap:10px;padding:9px 2px;border-top:1px solid var(--line)}
+.pday:first-child{border-top:0}
+.pday.today .pd b{color:var(--mohican)}
+.pd{line-height:1.1}
+.pd b{display:block;font-family:var(--num);font-weight:700;font-size:20px;color:var(--triton);font-variant-numeric:tabular-nums}
+.pd span{font-size:11px;color:var(--muted)}
+.pd.sat span{color:#2a6fd0}.pd.sun span{color:var(--danger)}
+.pitems{display:flex;flex-direction:column;gap:6px;min-width:0}
+.pitem{display:flex;align-items:center;gap:8px;min-width:0}
+.kind{flex:none;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:5px}
+.k-off{background:var(--mohican-soft);color:#0b6c9c}.k-after{background:#e3e9f7;color:var(--triton)}.k-other{background:#eef0f3;color:#55606f}
+.ptime{flex:none;font-family:var(--num);font-weight:600;font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
+.ptext{flex:1;min-width:0;font-size:14px;color:var(--ink);overflow-wrap:anywhere}
+.pdel{flex:none;font:inherit;font-size:12px;color:var(--muted);background:none;border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer}
+.pdel.armed{background:var(--danger);border-color:var(--danger);color:#fff}
+.pempty{font-size:13px;color:var(--muted);padding:12px 2px}
+.check{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink)}
+.check input{accent-color:var(--triton);width:18px;height:18px}
+.seg.two{flex-direction:row}.seg.two label{flex:1}
+.spv{background:var(--mist);border-radius:10px;padding:8px;max-height:44vh;overflow:auto;text-align:center}
+.spv img{max-width:100%;height:auto;border-radius:4px;box-shadow:0 2px 10px rgba(13,27,51,.15)}
+.tab .dot{width:6px;height:6px;border-radius:50%;background:var(--draft);margin-left:4px;align-self:center}
+.status{flex:none;font-size:11px;font-weight:700;letter-spacing:.04em;padding:2px 9px;border-radius:999px}
+.st-final{background:rgba(255,255,255,.14);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.st-draft{background:var(--draft);color:#2b1a00}
+.info.isdraft{background:repeating-linear-gradient(135deg,#3a2a07 0 10px,#2f2306 10px 20px)}
+#content{position:relative}
+#content.draft .half{outline:2px dashed var(--draft);outline-offset:3px}
+#content.draft .half{position:relative}
+#content.draft .half::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='180'%3E%3Ctext x='20' y='110' transform='rotate(-24 130 90)' font-family='Arial,sans-serif' font-size='34' font-weight='700' fill='%23f2a93b' fill-opacity='.24'%3EDRAFT 作成中%3C/text%3E%3C/svg%3E")}
+.mrow .status{font-size:10px}
+.mrow .st-final{background:var(--mohican-soft);color:#0b6c9c;box-shadow:none}
+.mrow .hint{flex-basis:100%;font-size:11px;color:#8a5a00}
+.seg .auto{cursor:default;align-items:center}
+.st-final2{background:var(--mohican-soft);color:#0b6c9c}
+.info .fd{color:#f6d79a;font-size:11px}
+.seg .warn{color:#8a5a00}
+.bar button{padding:8px 10px}
+.sheet.tall{min-height:min(80%,720px)}
+.ctop{display:flex;flex-direction:column;gap:10px;position:sticky;top:-18px;background:var(--paper);padding-top:4px;margin-top:-4px;z-index:2}
+.back{align-self:flex-start;font:inherit;font-size:13px;font-weight:700;color:var(--triton);background:var(--mist);border:0;border-radius:999px;padding:5px 12px;cursor:pointer}
+.tabs2{display:flex;background:var(--mist);border-radius:10px;padding:3px;gap:3px}
+.tabs2 button{flex:1;font:inherit;font-size:13px;font-weight:700;color:var(--muted);background:none;border:0;border-radius:8px;padding:8px;cursor:pointer}
+.tabs2 button[aria-selected="true"]{background:#fff;color:var(--triton);box-shadow:0 1px 3px rgba(13,27,51,.12)}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:0 12px;background:#fff}
+.search svg{width:16px;height:16px;color:var(--muted);flex:none}
+.search input{flex:1;min-width:0;font:inherit;font-size:16px;border:0;padding:10px 0;outline:none;color:var(--ink);background:none;color-scheme:light}
+.plist2{display:flex;flex-direction:column;margin-top:6px}
+.prow{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:11px 4px;border-top:1px solid var(--line)}
+.prow:first-child{border-top:0}
+.prow:focus-visible{outline:2px solid var(--mohican)}
+.prow .nm2{font-size:15px;font-weight:700;color:var(--ink);min-width:0;overflow-wrap:anywhere}
+.prow .id{font-family:var(--num);font-weight:600;font-size:14px;color:var(--muted);margin-left:6px}
+.prow .last{font-size:11px;color:var(--muted);text-align:right;align-self:center}
+.prow .cnts{grid-column:1/-1;display:flex;gap:5px;flex-wrap:wrap}
+.cnt{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--mist);color:var(--muted)}
+.cnt.fl{background:var(--mohican-soft);color:#0b6c9c}.cnt.sm{background:#e3e9f7;color:var(--triton)}.cnt.fu{background:#fff4e2;color:#8a5a00}
+.hero{display:flex;flex-direction:column;gap:4px;padding:14px;border-radius:14px;background:var(--triton);color:#fff;box-shadow:inset 0 -4px 0 var(--mohican)}
+.hero .hn{font-size:22px;font-weight:700}
+.hero .hi{font-family:var(--num);font-weight:600;font-size:16px;color:#bcd6f2}
+.hero .hp{font-size:12px;color:#bcd6f2}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{background:var(--mist);border-radius:12px;padding:10px;text-align:center}
+.tile b{display:block;font-family:var(--num);font-weight:700;font-size:28px;color:var(--triton);line-height:1.1}
+.tile span{font-size:11px;color:var(--muted)}
+.sect{font-size:12px;font-weight:700;color:var(--triton);letter-spacing:.06em;margin:4px 0 -4px;display:flex;align-items:center;gap:6px}
+.sect::before{content:"";width:3px;height:12px;border-radius:2px;background:var(--mohican)}
+.routes{display:flex;flex-wrap:wrap;gap:6px}
+.route{font-family:var(--num);font-weight:600;font-size:15px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);color:var(--ink)}
+.route small{font-family:var(--sans);font-size:11px;color:var(--muted);margin-left:4px}
+.tl{display:flex;flex-direction:column}
+.tli{display:grid;grid-template-columns:70px 1fr;gap:10px;padding:10px 2px;border-top:1px solid var(--line)}
+.tli:first-child{border-top:0}
+.tli .td{line-height:1.15}
+.tli .td b{display:block;font-family:var(--num);font-weight:700;font-size:17px;color:var(--triton);font-variant-numeric:tabular-nums}
+.tli .td span{font-size:11px;color:var(--muted)}
+.tli .tb{display:flex;flex-direction:column;gap:3px;min-width:0}
+.tli .tj{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:14px;color:var(--ink)}
+.tli .tj b{font-family:var(--num);font-weight:700;font-size:16px}
+.tli .tm{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.kd{font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px}
+.kd.flight{background:var(--mohican-soft);color:#0b6c9c}.kd.sim{background:#e3e9f7;color:var(--triton)}.kd.other{background:#eef0f3;color:#55606f}
+.kd.draft{background:#fff4e2;color:#8a5a00}.kd.future{background:#fff;border:1px solid var(--line);color:var(--muted)}
+.mrow .nm{all:unset;cursor:pointer;font-family:var(--num);font-weight:600;font-size:18px;color:var(--triton);min-width:5.5em;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.rd{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px}
+.rd.ok{background:#e4f4ea;color:#1d7a43}.rd.no{background:#f6e6e8;color:var(--danger)}
+.prog{font-size:13px;color:var(--triton);font-weight:700}
+/* iPad: day-by-day panel docked on the left */
+:root.has-side{--side:300px}
+@media (min-width:1200px){:root.has-side{--side:360px}}
+#side>*{flex:none}
+#side{position:fixed;left:0;bottom:0;top:calc(env(safe-area-inset-top,0px) + 82px);width:var(--side);box-sizing:border-box;z-index:4;overflow:auto;
+  background:#f4f7fb;color:var(--ink);border-right:1px solid #c9d6e6;padding:16px 14px calc(90px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px}
+.sd-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.sd-head b{font-family:var(--num);font-weight:700;font-size:40px;line-height:1;color:var(--triton)}
+.sd-head span{font-size:15px;font-weight:700;color:var(--triton)}
+.sd-head .status{margin-left:auto}
+.sd-today{background:var(--triton);color:#fff;border-radius:14px;padding:14px;box-shadow:inset 0 -4px 0 var(--mohican);display:flex;flex-direction:column;gap:4px}
+.sd-today .l{font-size:11px;letter-spacing:.12em;color:#bcd6f2}
+.sd-today .j{font-size:20px;font-weight:700;font-family:var(--num);letter-spacing:.02em}
+.sd-today .t{font-size:13px;color:#d9e8f8}
+.sd-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.sd-stats div{background:#fff;border:1px solid #dbe4ef;border-radius:10px;padding:7px 4px;text-align:center}
+.sd-stats b{display:block;font-family:var(--num);font-weight:700;font-size:20px;color:var(--triton)}
+.sd-stats span{font-size:10px;color:var(--muted)}
+.sd-list{display:flex;flex-direction:column;background:#fff;border:1px solid #dbe4ef;border-radius:12px;overflow:hidden}
+.sd-day{display:grid;grid-template-columns:50px 1fr;gap:10px;padding:8px 12px;border-top:1px solid #edf1f6;align-items:start}
+.sd-day:first-child{border-top:0}
+.sd-day.today{background:#e6f3fb;box-shadow:inset 4px 0 0 var(--mohican)}
+.sd-day.past{opacity:.55}
+.sd-day.off .sj{color:var(--muted);font-weight:500}
+.sd-d{line-height:1.05}
+.sd-d b{display:block;font-family:var(--num);font-weight:700;font-size:20px;color:var(--triton);font-variant-numeric:tabular-nums}
+.sd-d span{font-size:10px;color:var(--muted)}.sd-d.sat span{color:#2a6fd0}.sd-d.sun span{color:var(--danger)}
+.sd-b{min-width:0;display:flex;flex-direction:column;gap:2px}
+.sj{font-family:var(--num);font-weight:700;font-size:15px;color:var(--ink);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.sj .kd{font-family:var(--sans)}
+.st{font-size:12px;color:var(--muted)}
+.sp{font-size:12px;color:#0b6c9c;font-weight:700}
+.sd-empty{font-size:13px;color:var(--muted);background:#fff;border:1px dashed #c9d6e6;border-radius:12px;padding:14px;line-height:1.6}
+.sidebtn[aria-pressed="true"]{background:var(--mohican)}
+.filesync{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;background:var(--mist)}
+.filesync b{color:var(--triton);font-size:14px}
+.filesync p{margin:0;font-size:12px}
+.actions.left{justify-content:flex-start;flex-wrap:wrap}
+.filesync label.btn{position:relative;cursor:pointer}
+.filesync input{position:absolute;width:1px;height:1px;opacity:0}
+.fsmsg{font-weight:700;color:var(--triton)!important}
+/* sheets */
+[hidden]{display:none!important}
+.scrim{position:fixed;inset:0;z-index:20;background:rgba(3,12,30,.55);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:min(560px,100%);max-height:92%;overflow:auto;background:var(--paper);color:var(--ink);border-radius:18px 18px 0 0;box-sizing:border-box;
+  padding:18px max(18px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px}
+@media (min-height:600px) and (min-width:700px){.scrim{align-items:center}.sheet{border-radius:18px}}
+.sheet h2{margin:0;font-size:18px;font-weight:700;color:var(--triton);display:flex;align-items:center;gap:8px}
+.sheet h2::before{content:"";width:4px;height:18px;border-radius:2px;background:var(--mohican)}
+.sheet p{margin:0;font-size:13px;color:var(--muted);line-height:1.6}
+.drop{display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px;border:1.5px dashed #9cc4e8;border-radius:14px;background:var(--mist);color:var(--triton);font-weight:700;cursor:pointer;text-align:center}
+.drop small{font-weight:400;color:var(--muted);font-size:12px}
+.drop input{position:absolute;width:1px;height:1px;opacity:0}
+.preview{display:grid;grid-template-columns:110px 1fr;gap:14px;align-items:start}
+.thumb{background:var(--mist);border-radius:8px;padding:6px;max-height:300px;overflow:auto}
+.thumb canvas{width:100%;height:auto;display:block;border-radius:3px}
+.fields{display:flex;flex-direction:column;gap:12px;min-width:0}
+.field{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);font-weight:500}
+.field input[type=month]{font:inherit;font-size:16px;color:var(--ink);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color-scheme:light}
+.field input[type=range]{width:100%;accent-color:var(--triton)}
+.seg{display:flex;flex-direction:column;gap:6px}
+.seg label{display:flex;gap:8px;align-items:flex-start;padding:9px 10px;border:1px solid var(--line);border-radius:10px;font-size:13px;color:var(--ink);cursor:pointer;line-height:1.4}
+.seg label:has(input:checked){border-color:var(--triton);background:var(--mohican-soft)}
+.seg input{accent-color:var(--triton);margin-top:2px}
+.seg small{display:block;color:var(--muted);font-size:11px}
+.note{font-size:12px;color:var(--muted);background:var(--mist);border-radius:8px;padding:8px 10px;line-height:1.5}
+.actions{display:flex;gap:8px;justify-content:flex-end}
+.btn{font:inherit;font-size:14px;font-weight:700;border-radius:999px;padding:10px 18px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--triton);border-color:var(--triton);color:#fff}
+.btn.primary:disabled{opacity:.45}
+.btn.danger{color:var(--danger);border-color:#f0c6ca}
+.btn.danger.armed{background:var(--danger);color:#fff;border-color:var(--danger)}
+.mlist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.mrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;border-top:1px solid var(--line)}
+.mrow:first-child{border-top:0}
+.mrow .nm{font-family:var(--num);font-weight:600;font-size:18px;color:var(--triton);min-width:5.5em}
+.mrow .dt{flex:1 1 7em;font-size:12px;color:var(--muted)}
+.mrow .btn{padding:6px 12px;font-size:12px}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translateX(-50%);z-index:30;background:#fff;color:var(--triton);font-size:13px;font-weight:700;padding:9px 16px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.3);border-left:4px solid var(--mohican);transition:opacity .3s;white-space:nowrap;max-width:calc(100vw - 40px);overflow:hidden;text-overflow:ellipsis}
+@media (max-width:380px){.preview{grid-template-columns:84px 1fr}.brandmark{display:none}}
+@media (prefers-reduced-motion:reduce){.bar,.meta,.toast{transition:none}}
+</style>
+
+<header>
+  <div class="brandmark"><b>B787</b><span>ROSTER</span></div>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="月"></nav>
+  <button class="import ghost" id="openShare" aria-label="共有用に書き出す"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10V2M5 5l3-3 3 3M3 8v6h10V8"/></svg><span class="lbl">共有</span></button>
+  <button class="import" id="openImport"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 2v9M4 7l4 4 4-4M2 14h12"/></svg>取り込む</button>
+</header>
+<div class="info" id="info"><span id="meta"></span><button id="nextPlan" class="nextplan" hidden></button><span class="sync" id="sync" data-s="local" role="status"><i></i><span id="syncT">この端末</span></span></div>
+<aside id="side" aria-label="月の一覧" hidden></aside>
+<div id="stage"><div id="content"></div></div>
+<div class="bar" id="bar">
+  <button id="mode" aria-pressed="false">見開き</button>
+  <button id="out" aria-label="縮小">−</button>
+  <button id="zoomv" aria-label="画面に合わせる">100%</button>
+  <button id="in" aria-label="拡大">＋</button>
+  <span class="sep" aria-hidden="true"></span>
+  <button id="openCrew">クルー</button>
+  <button id="openPlans">予定<span class="badge" id="planBadge" hidden></span></button>
+  <button id="manage" aria-label="保存した月の管理">管理</button>
+  <button id="sideBtn" class="sidebtn" aria-pressed="false" hidden>一覧</button>
+</div>
+
+<div class="scrim" id="plansScrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pTitle">
+    <h2 id="pTitle">予定</h2>
+    <form class="planform" id="planForm" autocomplete="off">
+      <div class="row2">
+        <label class="field">日付<input id="pDate" type="date" required></label>
+        <label class="field">時刻（任意）<input id="pTime" type="time"></label>
+      </div>
+      <div class="chips" role="radiogroup" aria-label="区分">
+        <label><input type="radio" name="pKind" value="off" checked><span>OFFの日</span></label>
+        <label><input type="radio" name="pKind" value="after"><span>勤務後</span></label>
+        <label><input type="radio" name="pKind" value="other"><span>その他</span></label>
+      </div>
+      <label class="field">内容<input id="pText" type="text" maxlength="60" placeholder="例：家族で買い物" required></label>
+      <div class="actions"><button class="btn primary" type="submit" id="pAdd">追加</button></div>
+    </form>
+    <div class="plist" id="plist"></div>
+    <div class="actions"><button class="btn" id="pClose">閉じる</button></div>
+  </div>
+</div>
+
+<div class="scrim" id="shareScrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sTitle">
+    <h2 id="sTitle">共有用に書き出す</h2>
+    <div class="seg two">
+      <label><input type="radio" name="sLayout" value="single" checked><span>縦1列<small>LINEやメールで見やすい形</small></span></label>
+      <label><input type="radio" name="sLayout" value="spread"><span>見開き2列<small>1枚にコンパクトに収める</small></span></label>
+    </div>
+    <label class="check"><input type="checkbox" id="sPlans" checked><span>書き込んだ予定を下に載せる</span></label>
+    <div class="spv"><img id="spImg" alt="書き出し画像のプレビュー"></div>
+    <p class="note" id="sNote"></p>
+    <div class="actions">
+      <button class="btn" id="sClose">閉じる</button>
+      <button class="btn primary" id="sSave" disabled>JPEGで保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="importScrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="impTitle">
+    <h2 id="impTitle">スケジュールを取り込む</h2>
+    <label class="drop" id="drop">スクリーンショットを選ぶ
+      <small>複数枚まとめて選べます。重なった日付は1つにつなぎます</small>
+      <input id="file" type="file" accept="image/*" multiple>
+    </label>
+    <div id="impBody" hidden>
+      <div class="preview">
+        <div class="thumb"><canvas id="pv"></canvas></div>
+        <div class="fields">
+          <label class="field">対象の月<input id="ym" type="month"></label>
+          <div class="seg" id="modeSeg"></div>
+          <div class="seg" id="statusSeg" hidden></div>
+          <label class="field">上端を削る<input id="trimTop" type="range" min="0" max="20" step="0.5" value="0"></label>
+          <label class="field">下端を削る<input id="trimBot" type="range" min="0" max="20" step="0.5" value="0"></label>
+        </div>
+      </div>
+      <p class="note" id="impNote"></p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="impCancel">キャンセル</button>
+      <button class="btn primary" id="impSave" disabled>保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="manageScrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <h2 id="mTitle">保存した月</h2>
+    <div class="mlist" id="mlist"></div>
+    <p>月の名前を押すとその月を開きます。「読み取り」は、クルー検索やフライト履歴に使う文字データです。<span id="storeNote">データはあなたのアカウント専用の場所に保存され、同じアカウントのiPadとiPhoneで同期します。ネットにつながっていないときは、この端末に残っている最新の内容を表示します。</span></p>
+    <p class="note" id="syncNote"></p>
+    <div class="filesync">
+      <b>同期ファイル</b>
+      <p>iPad・iPhoneのホーム画面アプリとClaude版のあいだで、データを受け渡すためのファイルです。iCloud Driveに保存すると、もう一方の端末から読み込めます。新しく変更した方の内容に揃います。</p>
+      <div class="actions left"><button class="btn primary" id="fsMake">同期ファイルを作る</button><label class="btn" id="fsLoadL">同期ファイルを読み込む<input id="fsLoad" type="file" accept=".json,application/json"></label></div>
+      <p class="fsmsg" id="fsMsg"></p>
+    </div>
+    <div class="actions"><button class="btn" id="offlineSave">オフライン用に保存</button><button class="btn" id="mClose">閉じる</button></div>
+  </div>
+</div>
+<div class="scrim" id="crewScrim" hidden>
+  <div class="sheet tall" role="dialog" aria-modal="true" aria-labelledby="cTitle">
+    <div class="ctop">
+      <button class="back" id="cBack" hidden aria-label="一覧に戻る">‹ 一覧</button>
+      <h2 id="cTitle">クルー</h2>
+      <div class="tabs2" role="tablist">
+        <button role="tab" id="tPeople" aria-selected="true">一緒に勤務した人</button>
+        <button role="tab" id="tFlights" aria-selected="false">フライト履歴</button>
+      </div>
+    </div>
+    <div id="peopleView">
+      <label class="search"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+        <input id="q" type="search" placeholder="名前（カナ・ひらがな）か社番" autocomplete="off" aria-label="名前か社番で検索"></label>
+      <div id="peopleList" class="plist2"></div>
+    </div>
+    <div id="personView" hidden></div>
+    <div id="flightView" hidden></div>
+    <p class="note" id="crewNote"></p>
+    <div class="actions"><button class="btn" id="cClose">閉じる</button></div>
+  </div>
+</div>
+<div class="toast hide" id="toast" role="status"></div>
+
+<script>
+const APP_MODE="pwa",IS_PWA=APP_MODE==="pwa";
+const SEEDS=IS_PWA?[]:[{ym:"2026-07",src:"",status:"final"},{ym:"2026-08",src:"",status:"final"},{ym:"2026-09",src:"",status:"final"},{ym:"2026-10",src:"",status:"final"},{ym:"2026-11",src:"",status:"final"},{ym:"2026-12",src:"",status:"draft"}];
+const SEED_TS=Date.parse("2026-10-24T07:00:00+09:00");
+const SEED_DATA=IS_PWA?{}:{};
+const $=id=>document.getElementById(id);
+const stage=$("stage"),content=$("content"),bar=$("bar"),meta=$("meta"),zv=$("zoomv"),modeBtn=$("mode");
+
+/* ---------- storage (IndexedDB, falls back to memory) ---------- */
+const mem=new Map();
+function idb(){return new Promise((res,rej)=>{try{const r=indexedDB.open("ana-roster",2);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains("months"))d.createObjectStore("months",{keyPath:"ym"});if(!d.objectStoreNames.contains("plans"))d.createObjectStore("plans",{keyPath:"id"})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}})}
+async function dbAllRaw(){try{const db=await idb();return await new Promise(r=>{const q=db.transaction("months").objectStore("months").getAll();q.onsuccess=()=>r(q.result||[]);q.onerror=()=>r([...mem.values()])})}catch(e){return[...mem.values()]}}
+async function dbPut(rec){mem.set(rec.ym,rec);try{const db=await idb();await new Promise((r,j)=>{const t=db.transaction("months","readwrite");t.objectStore("months").put(rec);t.oncomplete=r;t.onerror=()=>j(t.error)})}catch(e){}}
+async function dbAll(){return(await dbAllRaw()).filter(r=>!r.deleted)}
+async function dbDel(ym){await dbPut({ym,deleted:true,rev:Date.now(),updated:0,dirty:true});kickSync()}
+const pmem=new Map();
+async function planAllRaw(){try{const db=await idb();return await new Promise(r=>{const q=db.transaction("plans").objectStore("plans").getAll();q.onsuccess=()=>r(q.result||[]);q.onerror=()=>r([...pmem.values()])})}catch(e){return[...pmem.values()]}}
+async function planPut(p){pmem.set(p.id,p);try{const db=await idb();await new Promise((r,j)=>{const t=db.transaction("plans","readwrite");t.objectStore("plans").put(p);t.oncomplete=r;t.onerror=()=>j(t.error)})}catch(e){}}
+async function planAll(){return(await planAllRaw()).filter(p=>!p.deleted)}
+async function planDel(id){await planPut({id,deleted:true,rev:Date.now(),dirty:true});kickSync()}
+const pref={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+/* ---------- image helpers ---------- */
+const toDataURL=b=>new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(f.result);f.onerror=rej;f.readAsDataURL(b)});
+/* Claude app views refuse blob: images, so every image is shown from a data: URL */
+const loadBlobImg=async b=>loadImg(await toDataURL(b));
+const loadImg=src=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src});
+function toCanvas(src,sx=0,sy=0,sw=src.width||src.naturalWidth,sh=src.height||src.naturalHeight,dw=sw,dh=sh){
+  const c=document.createElement("canvas");c.width=Math.round(dw);c.height=Math.round(dh);
+  const g=c.getContext("2d");g.imageSmoothingQuality="high";g.drawImage(src,sx,sy,sw,sh,0,0,c.width,c.height);return c}
+const toBlob=c=>new Promise(r=>c.toBlob(r,"image/png"));
+function lumData(c){const d=c.getContext("2d",{willReadFrequently:true}).getImageData(0,0,c.width,c.height).data;const L=new Uint8Array(c.width*c.height);for(let i=0,j=0;j<L.length;i+=4,j++)L[j]=(d[i]*77+d[i+1]*150+d[i+2]*29)>>8;return L}
+
+/* Remove everything that is not the schedule table: status bar, blurred band, browser chrome, page margins. */
+function autoCrop(img){
+  const c=toCanvas(img),W=c.width,H=c.height,L=lumData(c),D=120;
+  // 1. left/right table border: vertical lines that run through the middle of the screenshot
+  const y0=Math.floor(H*.3),y1=Math.floor(H*.7),cd=new Float32Array(W);
+  for(let y=y0;y<y1;y+=2){const o=y*W;for(let x=0;x<W;x++)if(L[o+x]<D)cd[x]++}
+  const nb=(y1-y0)/2;let l=-1,r=-1;
+  // a real border meets the horizontal grid lines; a scroll indicator floats apart from them
+  const grid=[];for(let y=y0;y<y1;y++){let k=0;const o=y*W;for(let x=0;x<W;x+=4)if(L[o+x]<D)k++;if(k/(W/4)>.5)grid.push(y)}
+  const joined=(x,dir)=>{if(!grid.length)return true;let k=0;for(const y of grid){const xx=x+dir*8;if(xx>=0&&xx<W&&L[y*W+xx]<D)k++}return k/grid.length>.6};
+  for(let x=0;x<W;x++)if(cd[x]/nb>.75&&joined(x,1)){l=x;break}
+  for(let x=W-1;x>=0;x--)if(cd[x]/nb>.75&&joined(x,-1)){r=x;break}
+  if(l<0||r-l<W*.4){l=0;r=W-1}
+  // 2. rows that still show the table border are table; status bar, toolbars and page margins are not
+  const has=y=>{const o=y*W;for(let k=-2;k<=2;k++){const a=L[o+Math.min(W-1,Math.max(0,l+k))],b=L[o+Math.min(W-1,Math.max(0,r+k))];if(a<D||b<D)return true}return false};
+  const walk=(from,step,limit)=>{let y=from,gap=0,last=from;while(y!==limit){if(has(y)){last=y;gap=0}else if(++gap>6)break;y+=step}return last};
+  const mid=Math.floor(H/2);let top=walk(mid,-1,-1),bot=walk(mid,1,H);
+  // 3. Safari blurs the page under its status bar: keep a blurred-but-readable band that sits just above the crisp table
+  const sh=new Float32Array(H);for(let y=0;y<H;y++){let s=0,n=0;const o=y*W;for(let x=0;x<W-2;x+=2){s+=Math.abs(L[o+x+2]-L[o+x]);n++}sh[y]=s/n}
+  const ms=Array.from(sh.slice(H>>2,(3*H)>>2)).sort((a,b)=>a-b),med=ms[ms.length>>1]||1;
+  let bt=0,run=0;for(let y=0;y<H*.4;y++){if(sh[y]<.3*med)run++;else{if(run>=15)bt=y;run=0}}
+  if(bt>H*.05&&bt<top&&top-bt<H*.06)top=bt;
+  l=Math.max(0,l-6);r=Math.min(W-1,r+4);top=Math.max(0,top-2);bot=Math.min(H-1,bot+3);
+  return toCanvas(c,l,top,r-l+1,bot-top+1);
+}
+
+/* Row signatures: 96 bins per row, used to find where two screenshots overlap */
+function sig(c){const L=lumData(c),W=c.width,H=c.height,B=96,S=new Float32Array(H*B);
+  for(let y=0;y<H;y++)for(let b=0;b<B;b++){const x0=Math.floor(b*W/B),x1=Math.floor((b+1)*W/B);let s=0;for(let x=x0;x<x1;x++)s+=L[y*W+x];S[y*B+b]=s/(x1-x0)}return S}
+function findOffset(SA,HA,SB,HB,t0,len){const B=96;let best=1e9,bo=-1;
+  for(let o=0;o+len<=HA;o++){let s=0;for(let i=0;i<len;i+=2){const a=(o+i)*B,b=(t0+i)*B;for(let k=0;k<B;k+=3)s+=Math.abs(SA[a+k]-SB[b+k]);if(s>best*1.05)break}if(s<best){best=s;bo=o}}
+  return{o:bo,cost:best/((len/2)*(B/3))}}
+function stack(parts,W){const H=parts.reduce((h,p)=>h+p.h,0);const c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d");let y=0;for(const p of parts){g.drawImage(p.c,0,p.y0,p.c.width,p.h,0,y,W,p.h);y+=p.h}return c}
+/* Join B onto A; overlapping rows are kept once (A's copy above the seam) */
+function merge(A,B){
+  if(B.width!==A.width)B=toCanvas(B,0,0,B.width,B.height,A.width,B.height*A.width/B.width);
+  const SA=sig(A),SB=sig(B),len=Math.min(140,Math.floor(Math.min(A.height,B.height)/4)),t0=Math.min(80,Math.floor(B.height/6));
+  const t1=Math.min(80,Math.floor(A.height/6));
+  const m1=findOffset(SA,A.height,SB,B.height,t0,len), m2=findOffset(SB,B.height,SA,A.height,t1,len);
+  const OK=1.2;
+  if(m1.o>=0&&m1.cost<OK&&(m1.cost<=m2.cost||m2.o<0))return{c:stack([{c:A,y0:0,h:m1.o},{c:B,y0:t0,h:B.height-t0}],A.width),joined:true};
+  if(m2.o>=0&&m2.cost<OK)return{c:stack([{c:B,y0:0,h:m2.o},{c:A,y0:t1,h:A.height-t1}],A.width),joined:true};
+  return{c:stack([{c:A,y0:0,h:A.height},{c:B,y0:0,h:B.height}],A.width),joined:false};
+}
+function findSplit(c){const W=c.width,H=c.height,y0=Math.floor(H*.38),y1=Math.ceil(H*.62);
+  const L=lumData(c);let best=[],mn=1e9;const rows=[];
+  for(let y=y0;y<y1;y++){let s=0,n=0;for(let x=0;x<W;x+=3){s+=L[y*W+x];n++}rows.push([s/n,y]);mn=Math.min(mn,s/n)}
+  const cands=rows.filter(a=>a[0]<=mn+1.5).sort((a,b)=>Math.abs(a[1]-H/2)-Math.abs(b[1]-H/2));
+  return cands.length?cands[0][1]/H:.5}
+
+/* ---------- viewer ---------- */
+let months=[],cur=null,url=null,natW=1,natH=1,split=.5,z=1,base=0,spread=false,userMode=null;
+const MAX=4,GAP=10,WD="日月火水木金土";
+const ymLabel=ym=>{const[y,m]=ym.split("-");return{y,m:+m}};
+function renderTabs(){
+  const tabs=$("tabs"),thisY=String(new Date().getFullYear());
+  tabs.innerHTML=months.map(r=>{const{y,m}=ymLabel(r.ym);return`<button class="tab" role="tab" aria-selected="${r.ym===cur}" data-ym="${r.ym}">${y!==thisY?`<span class="y">'${y.slice(2)}</span>`:""}<span class="m">${m}</span><span class="u">月</span>${r.status==="draft"?'<span class="dot" aria-label="ドラフト"></span>':""}</button>`}).join("");
+  tabs.querySelectorAll(".tab").forEach(b=>b.onclick=()=>select(b.dataset.ym));
+  tabs.querySelector('[aria-selected="true"]')?.scrollIntoView({inline:"center",block:"nearest"});
+}
+function fmt(ts){const d=new Date(ts);return`${d.getMonth()+1}/${d.getDate()}（${WD[d.getDay()]}）${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`}
+async function select(ym){
+  cur=ym;pref.set("roster-cur",ym);renderTabs();
+  const r=months.find(m=>m.ym===ym);
+  if(!r){content.innerHTML=`<div class="empty"><b>スケジュールがありません</b>右上の「取り込む」からスクリーンショットを選ぶか、「管理」の「同期ファイルを読み込む」でClaude版のデータを受け取ってください。</div>`;content.style.width="auto";content.classList.remove("draft");$("info").classList.remove("isdraft");meta.textContent="";return}
+  if(!r.blob&&r.assetId){const b=await fetchAsset(r.assetId);if(b){r.blob=b;await dbPut(r)}}
+  if(!r.blob){content.innerHTML=`<div class="empty"><b>画像をまだ受け取っていません</b>ネットにつながると自動で受け取ります。</div>`;content.style.width="auto";return}
+  url=await toDataURL(r.blob);
+  const im=await loadImg(url);natW=im.naturalWidth;natH=im.naturalHeight;split=r.split??.5;
+  const{m}=ymLabel(ym),dr=r.status==="draft";meta.innerHTML=`<span class="status ${dr?"st-draft":"st-final"}">${dr?"ドラフト（作成中）":"確定"}</span>${dr?` <span class="fd">確定は${fdLabel(ym)}から</span>`:""} ${m}月 · ${dr?"取込":"更新"} <b>${fmt(r.updated)}</b>`;$("info").classList.toggle("isdraft",dr);renderInfo();
+  content.innerHTML="";content.classList.toggle("draft",dr);spread=null;layout(false);stage.scrollTo(0,0);renderSide();
+}
+function build(){
+  content.innerHTML="";
+  if(spread){
+    const a=document.createElement("div"),b=document.createElement("div");a.className=b.className="half";
+    a.style.aspectRatio=`${natW} / ${natH*split}`;b.style.aspectRatio=`${natW} / ${natH*(1-split)}`;
+    const ia=new Image(),ib=new Image();ia.src=ib.src=url;ia.alt="スケジュール 前半";ib.alt="スケジュール 後半";
+    ib.style.marginTop=`${-(natH*split/natW)*100}%`;a.append(ia);b.append(ib);content.append(a,b);content.style.setProperty("--gap",GAP+"px");
+  }else{const a=document.createElement("div");a.className="half";const i=new Image();i.src=url;i.alt="勤務スケジュール";a.append(i);content.append(a);content.style.setProperty("--gap","0px")}
+}
+function layout(keep){
+  if(!url||!months.find(m=>m.ym===cur))return;
+  const cs=getComputedStyle(stage);
+  const vw=stage.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)-16;
+  const vh=stage.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom)-10;
+  const want=userMode??(vw>vh*1.05);
+  if(want!==spread||!content.querySelector("img")){spread=want;build()}
+  modeBtn.setAttribute("aria-pressed",spread);
+  base=spread?Math.min(vw,2*natW*vh/(natH*Math.max(split,1-split))+GAP):vw;
+  applyZoom(keep?z:1);
+}
+function applyZoom(nz,cx,cy){
+  nz=Math.min(MAX,Math.max(1,nz));const r=stage.getBoundingClientRect();cx=cx??r.width/2;cy=cy??r.height/2;
+  const old=content.offsetWidth||base*nz,px=stage.scrollLeft+cx,py=stage.scrollTop+cy;
+  z=nz;content.style.width=(base*z)+"px";const k=(base*z)/old;stage.scrollLeft=px*k-cx;stage.scrollTop=py*k-cy;zv.textContent=Math.round(z*100)+"%";
+}
+$("in").onclick=()=>applyZoom(z*1.5);$("out").onclick=()=>applyZoom(z/1.5);
+zv.onclick=()=>{applyZoom(1);stage.scrollTo(0,0)};
+modeBtn.onclick=()=>{userMode=!spread;layout(false);stage.scrollTo(0,0)};
+let rt;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{applySide();userMode=null;layout(false)},120)});
+
+let pinch=null,moved=false,lastTap=0,tapTimer=null;
+const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+stage.addEventListener("touchstart",e=>{moved=false;if(e.touches.length===2){e.preventDefault();pinch={d:dist(e.touches),z,cx:(e.touches[0].clientX+e.touches[1].clientX)/2,cy:(e.touches[0].clientY+e.touches[1].clientY)/2}}},{passive:false});
+stage.addEventListener("touchmove",e=>{moved=true;if(pinch&&e.touches.length===2){e.preventDefault();applyZoom(pinch.z*dist(e.touches)/pinch.d,pinch.cx,pinch.cy)}},{passive:false});
+stage.addEventListener("wheel",e=>{if(e.ctrlKey){e.preventDefault();applyZoom(z*Math.exp(-e.deltaY/100),e.clientX,e.clientY)}},{passive:false});
+stage.addEventListener("touchend",e=>{
+  if(e.touches.length<2)pinch=null;if(moved||e.changedTouches.length!==1||e.touches.length)return;
+  e.preventDefault();const c=e.changedTouches[0],t=Date.now();
+  if(t-lastTap<300){clearTimeout(tapTimer);lastTap=0;applyZoom(z>1.05?1:2.5,c.clientX,c.clientY);return}
+  lastTap=t;tapTimer=setTimeout(()=>{bar.classList.toggle("hide")},300);
+},{passive:false});
+stage.addEventListener("dblclick",e=>applyZoom(z>1.05?1:2.5,e.clientX,e.clientY));
+
+let toastT;function toast(msg){const t=$("toast");t.textContent=msg;t.classList.remove("hide");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.add("hide"),2400)}
+
+/* ---------- import ---------- */
+let pending=null,pieces=[]; // merged canvas (cropped) + each cropped screenshot
+/* 確定ルール: 前月の月末日を含めた3日前（例: 11月分は10/29）以降に取り込んだものが確定。それより前はドラフト */
+function finalFrom(ym){const[y,m]=ym.split("-").map(Number);return new Date(y,m-1,1-3)}
+function ruleStatus(ym,ts){return ts>=finalFrom(ym).getTime()?"final":"draft"}
+const fdLabel=ym=>{const d=finalFrom(ym);return`${d.getMonth()+1}/${d.getDate()}`};
+const ymNum=ym=>{const[y,m]=ym.split("-").map(Number);return y*12+m};
+function ymStr(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`}
+function defaultYm(){const n=new Date(),c=ymStr(n),nx=ymStr(new Date(n.getFullYear(),n.getMonth()+1,1));return months.some(m=>m.ym===c)?nx:c}
+function openImport(){pending=null;pieces=[];$("impBody").hidden=true;$("impSave").disabled=true;$("file").value="";$("trimTop").value=0;$("trimBot").value=0;$("importScrim").hidden=false}
+function closeSheets(){document.querySelectorAll(".scrim").forEach(x=>x.hidden=true)}
+$("openImport").onclick=openImport;$("impCancel").onclick=closeSheets;
+document.querySelectorAll(".scrim").forEach(s=>s.addEventListener("click",e=>{if(e.target===s)closeSheets()}));
+function renderMode(){
+  const ym=$("ym").value,exists=months.some(m=>m.ym===ym),{m}=ym?ymLabel(ym):{m:"?"};
+  $("modeSeg").innerHTML=exists
+    ?`<label><input type="radio" name="mode" value="replace" checked><span>変更版に置き換える<small>${m}月の今の画像を消して、この画像だけにします</small></span></label>
+      <label><input type="radio" name="mode" value="append"><span>続きとしてつなげる<small>${m}月の画像に足りない日付を足します</small></span></label>`
+    :`<label><input type="radio" name="mode" value="new" checked><span>${m}月として新しく保存</span></label>`;
+  const ss=$("statusSeg");ss.hidden=!ym;if(!ym)return;
+  const st=ruleStatus(ym,Date.now());
+  ss.innerHTML=st==="final"
+    ?`<label class="auto"><span class="status st-final2">確定</span><span>${m}月分は${fdLabel(ym)}から確定です。確定として保存します。</span></label>`
+    :`<label class="auto"><span class="status st-draft">ドラフト</span><span>${m}月分の確定は${fdLabel(ym)}からです。今はドラフト（作成中）として保存します。<small class="warn">${fdLabel(ym)}以降に取り込み直すと確定になります</small></span></label>`;
+}
+$("ym").addEventListener("change",renderMode);
+function trimmed(){const c=pending;if(!c)return null;const t=Math.round(c.height*$("trimTop").value/100),b=Math.round(c.height*$("trimBot").value/100);return toCanvas(c,0,t,c.width,c.height-t-b)}
+function drawPreview(){const c=trimmed();if(!c)return;const pv=$("pv"),s=Math.min(1,330/c.width);pv.width=c.width*s;pv.height=c.height*s;pv.getContext("2d").drawImage(c,0,0,pv.width,pv.height)}
+$("trimTop").oninput=drawPreview;$("trimBot").oninput=drawPreview;
+$("file").addEventListener("change",async e=>{
+  const files=[...e.target.files];if(!files.length)return;
+  $("impSave").disabled=true;$("impNote").textContent="画像を処理しています…";$("impBody").hidden=false;
+  try{
+    let acc=null,joins=0,gaps=0;
+    for(const f of files){const im=await loadBlobImg(f);const c=autoCrop(im);pieces.push(c);
+      if(!acc)acc=c;else{const r=merge(acc,c);acc=r.c;r.joined?joins++:gaps++}}
+    pending=acc;$("ym").value=defaultYm();renderMode();drawPreview();
+    $("impNote").textContent=`${files.length}枚を読み込み、表の外側（ステータスバー・ぼかし部分・余白）を自動で削除しました。`+(joins?` 重なった部分を${joins}か所つなぎました。`:"")+(gaps?` ${gaps}枚は重なりが見つからず、下に並べています。`:"")+" 残したい行が切れている場合は下のスライダーで調整してください。";
+    $("impSave").disabled=false;
+  }catch(err){$("impNote").textContent="画像を読み込めませんでした。別のスクリーンショットで試してください。"}
+});
+$("impSave").onclick=async()=>{
+  const ym=$("ym").value;if(!ym||!pending)return;
+  const mode=document.querySelector('input[name="mode"]:checked')?.value||"new";
+  let c=trimmed();const prev=months.find(m=>m.ym===ym);
+  if(mode==="append"){const im=await loadBlobImg(prev.blob);c=merge(toCanvas(im),c).c}
+  const status=ruleStatus(ym,Date.now());
+  $("impSave").disabled=true;$("impCancel").disabled=true;
+  const imgs=pieces.length?pieces:[c];
+  let data=null;
+  $("impNote").innerHTML='<span class="prog">表の文字を読み取っています…</span> 30秒ほどかかることがあります。';
+  if(!IS_PWA){try{data=await readTable(ym,imgs)}catch(e){data=null}}
+  if(data&&mode==="append"&&prev?.data)data=mergeData(prev.data,data);
+  const now=Date.now(),rec={ym,blob:await toBlob(c),split:findSplit(c),updated:now,rev:now,dirty:true,status,data:data||null};kickSyncSoon();
+  $("impCancel").disabled=false;
+  await dbPut(rec);months=(await dbAll()).sort((a,b)=>a.ym.localeCompare(b.ym));
+  closeSheets();await select(ym);
+  if(!data)setTimeout(()=>toast(IS_PWA?"画像を保存しました。文字の読み取りはClaude版で行い、同期ファイルで受け取れます":"画像は保存しました。文字の読み取りは「管理」からやり直せます"),2600);
+  const{m}=ymLabel(ym);const sl=status==="draft"?"ドラフト":"確定";toast(mode==="replace"?`${m}月を${sl}で置き換えました`:mode==="append"?`${m}月に日付を追加しました（${sl}）`:`${m}月を${sl}として保存しました`);
+};
+
+/* ---------- manage ---------- */
+function renderManage(){
+  $("mlist").innerHTML=months.length?months.map(r=>{const{y,m}=ymLabel(r.ym);return`<div class="mrow"><button class="nm" data-open="${r.ym}">${y}.${String(m).padStart(2,"0")}</button><span class="rd ${r.data?"ok":"no"}">${r.data?"読み取り済み":"未読み取り"}</span><span class="status ${r.status==="draft"?"st-draft":"st-final"}">${r.status==="draft"?"ドラフト":"確定"}</span><span class="dt">${fmt(r.updated)}</span>${r.data||IS_PWA?"":`<button class="btn reread" data-ym="${r.ym}">読み取る</button>`}${r.status==="draft"?`<span class="hint">${fdLabel(r.ym)}以降に取り込み直すと確定</span>`:""}<button class="btn danger" data-ym="${r.ym}">削除</button></div>`}).join(""):`<div class="mrow"><span class="dt">まだ保存した月はありません</span></div>`;
+  $("mlist").querySelectorAll("[data-open]").forEach(b=>b.onclick=async()=>{closeSheets();await select(b.dataset.open)});
+  $("mlist").querySelectorAll(".btn.reread").forEach(b=>b.onclick=async()=>{
+    const r=months.find(x=>x.ym===b.dataset.ym);b.disabled=true;b.textContent="読み取り中…";
+    try{const im=toCanvas(await loadBlobImg(r.blob));const h=Math.round(im.height*(r.split||.5));
+      const parts=[toCanvas(im,0,0,im.width,h),toCanvas(im,0,h,im.width,im.height-h)];
+      const d=await readTable(r.ym,parts);r.data=d;r.rev=Date.now();r.dirty=true;await dbPut(r);kickSync();months=(await dbAll()).sort((a,b)=>a.ym.localeCompare(b.ym));toast(`${ymLabel(r.ym).m}月の文字を読み取りました`)}
+    catch(e){toast(e&&e.code==="not_granted"?"読み取りが許可されませんでした":"読み取れませんでした。少し待ってもう一度お試しください")}
+    renderManage()});
+  $("mlist").querySelectorAll(".btn.danger").forEach(b=>b.onclick=async()=>{
+    if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="本当に削除";return}
+    await dbDel(b.dataset.ym);months=(await dbAll()).sort((a,b)=>a.ym.localeCompare(b.ym));
+    const{m}=ymLabel(b.dataset.ym);toast(`${m}月を削除しました`);renderManage();
+    if(cur===b.dataset.ym)await select(months.at(-1)?.ym??ymStr(new Date()));else renderTabs();
+  });
+}
+$("manage").onclick=()=>{renderManage();syncNote();$("manageScrim").hidden=false};$("mClose").onclick=closeSheets;
+addEventListener("keydown",e=>{if(e.key==="Escape")closeSheets()});
+
+
+/* ---------- plans ---------- */
+let plans=[];
+const KIND={off:"OFF",after:"勤務後",other:"予定"};
+const pad2=n=>String(n).padStart(2,"0");
+const dStr=d=>`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+const dLabel=s=>{const d=parseD(s);return`${d.getMonth()+1}/${d.getDate()}（${WD[d.getDay()]}）`};
+const sortPlans=a=>a.sort((x,y)=>(x.date+(x.time||"00:00")).localeCompare(y.date+(y.time||"00:00")));
+const esc=t=>t.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function monthPlans(ym){return sortPlans(plans.filter(p=>p.date.startsWith(ym)))}
+function renderInfo(){
+  const today=dStr(new Date()),nowT=`${pad2(new Date().getHours())}:${pad2(new Date().getMinutes())}`;
+  const up=sortPlans(plans.filter(p=>p.date>today||(p.date===today&&(!p.time||p.time>=nowT))));
+  const n=cur?up.filter(p=>p.date.startsWith(cur)).length:0;
+  $("planBadge").hidden=!n;$("planBadge").textContent=n;
+  const nb=$("nextPlan");
+  if(up.length){const p=up[0];nb.hidden=false;nb.innerHTML=`<b>次の予定</b>${dLabel(p.date)} ${p.time?p.time+" ":""}${esc(p.text)}`;nb.onclick=()=>openPlans(p.date.slice(0,7))}
+  else nb.hidden=true;
+}
+function renderPlanList(){
+  const ym=cur,list=monthPlans(ym),{m}=ym?ymLabel(ym):{m:""},today=dStr(new Date());
+  if(!list.length){$("plist").innerHTML=`<p class="pempty">${m}月の予定はまだありません。上のフォームから追加できます。</p>`;return}
+  const by={};list.forEach(p=>(by[p.date]=by[p.date]||[]).push(p));
+  $("plist").innerHTML=Object.keys(by).map(d=>{const dt=parseD(d),w=dt.getDay();
+    return`<div class="pday${d===today?" today":""}"><div class="pd ${w===6?"sat":w===0?"sun":""}"><b>${dt.getDate()}</b><span>${WD[w]}曜</span></div><div class="pitems">${by[d].map(p=>`<div class="pitem"><span class="kind k-${p.kind}">${KIND[p.kind]}</span>${p.time?`<span class="ptime">${p.time}</span>`:""}<span class="ptext">${esc(p.text)}</span><button class="pdel" data-id="${p.id}" aria-label="削除">削除</button></div>`).join("")}</div></div>`}).join("");
+  $("plist").querySelectorAll(".pdel").forEach(b=>b.onclick=async()=>{
+    if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="本当に削除";return}
+    await planDel(b.dataset.id);plans=await planAll();renderPlanList();renderInfo();renderSide();toast("予定を削除しました")});
+}
+function openPlans(ym){
+  if(ym&&ym!==cur&&months.some(x=>x.ym===ym))select(ym);
+  const t=new Date(),use=(cur||dStr(t).slice(0,7));
+  $("pDate").value=dStr(t).startsWith(use)?dStr(t):use+"-01";
+  $("pTime").value="";$("pText").value="";
+  $("pTitle").textContent=`${ymLabel(use).m}月の予定`;
+  renderPlanList();$("plansScrim").hidden=false;
+}
+$("openPlans").onclick=()=>openPlans();$("pClose").onclick=closeSheets;
+$("planForm").addEventListener("submit",async e=>{
+  e.preventDefault();const date=$("pDate").value,text=$("pText").value.trim();if(!date||!text)return;
+  const p={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),date,time:$("pTime").value||"",kind:document.querySelector('input[name="pKind"]:checked').value,text,rev:Date.now(),dirty:true};kickSyncSoon();
+  await planPut(p);plans=await planAll();
+  if(!date.startsWith(cur)&&months.some(x=>x.ym===date.slice(0,7)))await select(date.slice(0,7));
+  renderPlanList();renderInfo();renderSide();$("pText").value="";$("pTime").value="";toast(`${dLabel(date)}に予定を追加しました`);
+});
+
+/* ---------- saving a file: Claude download prompt, or the iOS share sheet in the home-screen app ---------- */
+async function getDl(){if(dl===undefined){try{dl=await window.claude?.use?.("downloads")??null}catch(e){dl=null}}return dl}
+function canSave(){return IS_PWA||!!dl}
+async function saveFile(name,data,type){
+  if(!IS_PWA){const d=await getDl();if(!d)throw{code:"unavailable"};return d.save({filename:name,data})}
+  const blob=data instanceof Blob?data:new Blob([data],{type});const file=new File([blob],name,{type:type||blob.type});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file]});return{status:"saved"}}catch(e){if(e&&e.name==="AbortError")throw{code:"declined"};}}
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);return{status:"saved"};
+}
+/* ---------- share as JPEG ---------- */
+let shareBlob=null,shareUrl=null,dl=undefined;
+function rrect(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+function wrap(g,text,maxW){const out=[];let line="";for(const ch of text){if(g.measureText(line+ch).width>maxW&&line){out.push(line);line=ch}else line+=ch}if(line)out.push(line);return out}
+async function buildShare(){
+  const r=months.find(m=>m.ym===cur);if(!r)return null;
+  try{await Promise.all(['700 40px "Zen Kaku Gothic New"','500 20px "Zen Kaku Gothic New"','600 30px "Barlow Semi Condensed"','700 30px "Barlow Semi Condensed"'].map(f=>document.fonts.load(f)))}catch(e){}
+  const im=await loadBlobImg(r.blob);
+  const spreadOut=document.querySelector('input[name="sLayout"]:checked').value==="spread";
+  const withPlans=$("sPlans").checked,list=withPlans?monthPlans(cur):[];
+  const JP='"Zen Kaku Gothic New","Hiragino Sans",sans-serif',NUM='"Barlow Semi Condensed","Helvetica Neue",Arial,sans-serif';
+  const W=spreadOut?1800:1080,P=40,HEAD=170,GAPX=24;
+  let imgH,parts;
+  if(spreadOut){const cw=(W-2*P-GAPX)/2,sc=cw/im.naturalWidth,h1=im.naturalHeight*r.split,h2=im.naturalHeight-h1;
+    parts=[{sx:0,sy:0,sh:h1,dx:P,dw:cw,dh:h1*sc},{sx:0,sy:h1,sh:h2,dx:P+cw+GAPX,dw:cw,dh:h2*sc}];imgH=Math.max(h1,h2)*sc}
+  else{const cw=W-2*P,sc=cw/im.naturalWidth;parts=[{sx:0,sy:0,sh:im.naturalHeight,dx:P,dw:cw,dh:im.naturalHeight*sc}];imgH=im.naturalHeight*sc}
+  // measure plans block
+  const meas=document.createElement("canvas").getContext("2d");meas.font=`500 30px ${JP}`;
+  const textX=P+36+310,textW=W-P-36-textX;
+  const rows=list.map(p=>{const lines=wrap(meas,p.text,textW-(p.time?110:0));return{p,lines,h:Math.max(66,lines.length*42+24)}});
+  const plansH=rows.length?110+rows.reduce((a,b)=>a+b.h,0)+30:0;
+  const H=HEAD+P+imgH+P+(plansH?plansH+P:0)+56;
+  const c=document.createElement("canvas");c.width=W;c.height=Math.round(H);const g=c.getContext("2d");
+  g.fillStyle="#eef3f9";g.fillRect(0,0,W,H);
+  // header in triton blue, mohican livery stripe
+  g.fillStyle="#0b3c8c";g.fillRect(0,0,W,HEAD);g.fillStyle="#2aa0dc";g.fillRect(0,HEAD,W,10);g.fillStyle="#ffffff";g.fillRect(0,HEAD+10,W,4);g.fillStyle="#0b3c8c";g.fillRect(0,HEAD+14,W,3);
+  const{y,m}=ymLabel(cur);
+  g.fillStyle="#fff";g.textBaseline="alphabetic";
+  g.font=`700 84px ${NUM}`;const mw=g.measureText(String(m)).width;g.fillText(String(m),P,132);
+  g.font=`700 40px ${JP}`;g.fillText("月の勤務スケジュール",P+mw+10,128);
+  g.font=`600 30px ${NUM}`;g.fillStyle="#bcd6f2";const yr=String(y);g.fillText(yr,P,46);
+  const isDraft=r.status==="draft";
+  g.font=`500 24px ${JP}`;g.textAlign="right";g.fillText(`${isDraft?"取込":"更新"} ${fmt(r.updated)}`,W-P,128);
+  const st=isDraft?"ドラフト（作成中）":"確定";g.font=`700 24px ${JP}`;const sw=g.measureText(st).width+36;
+  g.textAlign="left";g.fillStyle=isDraft?"#f2a93b":"#ffffff";rrect(g,W-P-sw,40,sw,44,22);g.fill();
+  g.fillStyle=isDraft?"#2b1a00":"#0b3c8c";g.fillText(st,W-P-sw+18,71);
+  // schedule
+  let top=HEAD+17+P-10;
+  parts.forEach(pt=>{g.save();g.shadowColor="rgba(13,27,51,.18)";g.shadowBlur=24;g.shadowOffsetY=6;g.fillStyle="#fff";g.fillRect(pt.dx,top,pt.dw,pt.dh);g.restore();
+    g.drawImage(im,pt.sx,pt.sy,im.naturalWidth,pt.sh,pt.dx,top,pt.dw,pt.dh)});
+  if(r.status==="draft"){g.save();g.beginPath();parts.forEach(pt=>g.rect(pt.dx,top,pt.dw,pt.dh));g.clip();
+    g.fillStyle="rgba(242,169,59,.30)";g.font=`700 64px ${NUM}`;g.translate(W/2,top+imgH/2);g.rotate(-0.42);
+    for(let yy=-H;yy<H;yy+=210)for(let xx=-W;xx<W;xx+=430)g.fillText("DRAFT",xx+((yy/210)%2?215:0),yy);g.restore();
+    g.save();g.setLineDash([14,10]);g.lineWidth=4;g.strokeStyle="#f2a93b";parts.forEach(pt=>g.strokeRect(pt.dx-6,top-6,pt.dw+12,pt.dh+12));g.restore()}
+  top+=imgH+P;
+  // plans
+  if(rows.length){
+    g.fillStyle="#fff";rrect(g,P,top,W-2*P,plansH,22);g.fill();
+    g.fillStyle="#2aa0dc";rrect(g,P+36,top+40,8,38,4);g.fill();
+    g.fillStyle="#0b3c8c";g.font=`700 36px ${JP}`;g.fillText(`${m}月の予定`,P+56,top+72);
+    let yy=top+110;
+    rows.forEach((rw,i)=>{
+      if(i){g.fillStyle="#d6e0ec";g.fillRect(P+36,yy,W-2*P-72,2)}
+      const p=rw.p,d=parseD(p.date),w=d.getDay();
+      g.fillStyle="#0b3c8c";g.font=`700 38px ${NUM}`;g.fillText(`${d.getMonth()+1}/${d.getDate()}`,P+36,yy+48);
+      const dw=g.measureText(`${d.getMonth()+1}/${d.getDate()}`).width;
+      g.font=`500 24px ${JP}`;g.fillStyle=w===0?"#c7333f":w===6?"#2a6fd0":"#6a7a92";g.fillText(WD[w],P+36+dw+8,yy+46);const wdw=g.measureText(WD[w]).width;
+      // kind pill
+      const kt=KIND[p.kind];g.font=`700 20px ${JP}`;const kw=g.measureText(kt).width+22;
+      const kx=Math.max(P+36+150,P+36+dw+8+wdw+16);g.fillStyle=p.kind==="off"?"#d8eefa":p.kind==="after"?"#e3e9f7":"#eef0f3";rrect(g,kx,yy+20,kw,34,8);g.fill();
+      g.fillStyle=p.kind==="off"?"#0b6c9c":p.kind==="after"?"#0b3c8c":"#55606f";g.fillText(kt,kx+11,yy+44);
+      let tx=Math.max(textX,kx+kw+18);
+      if(p.time){g.font=`600 32px ${NUM}`;g.fillStyle="#0d1b33";g.fillText(p.time,tx,yy+48);tx+=g.measureText(p.time).width+16}
+      g.font=`500 30px ${JP}`;g.fillStyle="#0d1b33";
+      const lines=wrap(g,p.text,W-P-36-tx);lines.forEach((ln,j)=>g.fillText(ln,tx,yy+48+j*42));
+      yy+=rw.h;
+    });
+    top+=plansH+P;
+  }
+  g.font=`600 22px ${NUM}`;g.fillStyle="#8a9ab0";g.textAlign="right";g.fillText("B787 ROSTER",W-P,H-24);g.textAlign="left";
+  return await new Promise(res=>c.toBlob(res,"image/jpeg",.92));
+}
+async function refreshShare(){
+  $("sSave").disabled=true;$("sNote").textContent="画像を作成しています…";
+  shareBlob=await buildShare();if(!shareBlob){$("sNote").textContent="先にスケジュールを取り込んでください。";return}
+  shareUrl=await toDataURL(shareBlob);$("spImg").src=shareUrl;
+  await getDl();
+  const kb=Math.round(shareBlob.size/1024),drn=months.find(m=>m.ym===cur)?.status==="draft"?"ドラフト（作成中）の表示を入れて書き出します。":"";
+  if(canSave()){$("sSave").disabled=false;$("sNote").textContent=drn+`JPEG・約${kb}KB。保存を押すと、写真への保存やLINEなどへの送信を選べます。`}
+  else $("sNote").textContent=`この画面では保存ボタンが使えません。上のプレビュー画像を長押しして保存してください（約${kb}KB）。`;
+}
+$("openShare").onclick=()=>{if(!months.find(m=>m.ym===cur)){toast("先にスケジュールを取り込んでください");return}$("shareScrim").hidden=false;refreshShare()};
+document.querySelectorAll('input[name="sLayout"]').forEach(r=>r.onchange=refreshShare);$("sPlans").onchange=refreshShare;
+$("sClose").onclick=closeSheets;
+$("sSave").onclick=async()=>{
+  if(!canSave()||!shareBlob)return;
+  try{const res=await saveFile(`勤務スケジュール_${cur}${months.find(m=>m.ym===cur)?.status==="draft"?"_ドラフト":""}.jpg`,shareBlob,"image/jpeg");if(res.status==="saved")toast("画像を書き出しました")}
+  catch(e){const c=e&&e.code;
+    if(c==="declined")return;
+    if(c==="rate_limited"){toast("少し待ってからもう一度押してください");return}
+    dl=null;$("sSave").disabled=true;$("sNote").textContent="この画面では保存できませんでした。プレビュー画像を長押しして保存してください。"}
+};
+setInterval(renderInfo,60000);
+
+
+/* ---------- reading the table text (asks Claude) ---------- */
+let samplerP=null;function sampler(){if(!samplerP)samplerP=(async()=>{try{return await window.claude?.use?.("sample")??null}catch(e){return null}})();return samplerP}
+const jpg=c=>new Promise(r=>c.toBlob(r,"image/jpeg",.92));
+async function readTable(ym,canvases){
+  const s=await sampler();if(!s)throw{code:"unavailable"};
+  const lim=await s.limits().catch(()=>null);if(!lim?.images)throw{code:"unavailable"};
+  let cs=canvases;const max=lim.images.maxCount||4;
+  if(cs.length>max)cs=cs.slice(0,max);
+  const blobs=await Promise.all(cs.map(jpg));
+  const{y,m}=ymLabel(ym);
+  const prompt=`添付の画像は、航空会社パイロットの月間勤務スケジュール表のスクリーンショットです（${y}年${m}月分）。${blobs.length}枚あり、同じ表を上から順に撮ったもので、日付が重なることがあります。
+表の列は左から: DAY（日）, 曜日, D-ON（出勤時刻）, D-OFF（退勤時刻）, STY（滞在地）, T, JOB, DUTY, TIME, PLACE, 同乗者の役割, T, 社番, 氏名, 備考。
+次の決まりで、表の内容を正確に書き起こしてください。
+- 表に出てくるすべての日付を1日1件で返す（中身が空欄の日も items を空配列にして返す）。重なった日付は1件にまとめる。
+- DAY が空の行は、直前の日付の続き。JOB がある行は新しい item。役割・社番・氏名だけの行は、直前の item の crew に追加する。
+- 氏名は半角カナを全角カナに直し、姓と名の間は半角スペース1つ。社番は表のとおり（英字も可）。
+- 前日に出発して翌日に到着するフライト（例: TIME "18:05" PLACE "NRT" の翌日の行が TIME "-01:55" PLACE "-CGK"）は、出発日の item 1件にまとめて time "18:05-01:55"、place "NRT-CGK" とする。到着日の行は D-OFF と STY だけ残し items は空にする。
+- TIME の "10:00 -12:50" は "10:00-12:50" のようにスペースを除く。
+- 読めない・空欄の値は "" にする。推測で埋めない。
+JSONだけを返してください。形式の例:
+{"days":[{"d":1,"on":"17:10","off":"23:59","sty":"","items":[{"t":"","job":"S0440","duty":"ATTR","time":"17:10-23:59","place":"TAB-TAB","crew":[{"role":"ATTE","id":"12345","name":"ヤマダ タロウ","note":""}]}]}]}`;
+  const out=await s.json(prompt,{images:blobs,modelTier:"complex",cache:false});
+  if(!out||!Array.isArray(out.days))throw{code:"invalid_json"};
+  const days=out.days.filter(d=>Number.isInteger(+d.d)&&+d.d>=1&&+d.d<=31).map(d=>({d:+d.d,on:String(d.on||""),off:String(d.off||""),sty:String(d.sty||""),
+    items:(Array.isArray(d.items)?d.items:[]).map(i=>({t:String(i.t||""),job:String(i.job||""),duty:String(i.duty||""),time:String(i.time||""),place:String(i.place||""),
+      crew:(Array.isArray(i.crew)?i.crew:[]).map(c=>({role:String(c.role||""),id:String(c.id||""),name:String(c.name||"").normalize("NFKC").replace(/\s+/g," ").trim(),note:String(c.note||"")})).filter(c=>c.id||c.name)}))}));
+  const by=new Map();days.forEach(d=>{const e=by.get(d.d);if(!e||e.items.length<d.items.length)by.set(d.d,d)});
+  return{days:[...by.values()].sort((a,b)=>a.d-b.d)};
+}
+function mergeData(a,b){const by=new Map(a.days.map(d=>[d.d,d]));b.days.forEach(d=>by.set(d.d,d));return{days:[...by.values()].sort((x,y)=>x.d-y.d)}}
+
+/* ---------- crew history ---------- */
+const norm=t=>String(t||"").normalize("NFKC").replace(/[ぁ-ゖ]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60)).replace(/\s+/g,"").toUpperCase();
+const isFlight=i=>/^(NW|NH)?\d{3,4}$/.test(i.job)||(/^[A-Z]{3}-[A-Z]{3}$/.test(i.place)&&i.place!=="TAB-TAB");
+const kindOf=i=>isFlight(i)?"flight":/^(S\d{3,4}|FBS\d?)$/.test(i.job)?"sim":"other";
+const KLAB={flight:"フライト",sim:"SIM訓練",other:"訓練・会議ほか"};
+function allItems(){
+  const out=[];
+  months.forEach(r=>{if(!r.data)return;const[y,m]=r.ym.split("-").map(Number);
+    r.data.days.forEach(d=>(d.items||[]).forEach(i=>out.push({date:`${r.ym}-${pad2(d.d)}`,ym:r.ym,draft:r.status==="draft",y,m,d:d.d,day:d,item:i,kind:kindOf(i)})))});
+  return out.sort((a,b)=>b.date.localeCompare(a.date));
+}
+function people(){
+  const map=new Map();
+  allItems().forEach(x=>(x.item.crew||[]).forEach(c=>{
+    const key=c.id?("#"+c.id):("@"+norm(c.name));let p=map.get(key);
+    if(!p){p={key,id:c.id,name:c.name,names:new Set(),list:[]};map.set(key,p)}
+    if(c.name){p.names.add(c.name);if(!p.name)p.name=c.name}
+    p.list.push({...x,role:c.role,note:c.note||""});
+  }));
+  return[...map.values()];
+}
+function tally(list){const today=dStr(new Date());const past=list.filter(x=>x.date<=today),fut=list.filter(x=>x.date>today);
+  const c=k=>past.filter(x=>x.kind===k).length;return{past,fut,flight:c("flight"),sim:c("sim"),other:c("other"),days:new Set(past.map(x=>x.date)).size}}
+function wdOf(s){return WD[parseD(s).getDay()]}
+function renderPeople(){
+  const q=norm($("q").value);let ps=people();
+  if(q)ps=ps.filter(p=>norm(p.id).includes(q)||[...p.names].some(n=>norm(n).includes(q)));
+  ps.sort((a,b)=>b.list.length-a.list.length||(b.list[0]?.date||"").localeCompare(a.list[0]?.date||""));
+  const have=months.some(r=>r.data);
+  if(!ps.length){$("peopleList").innerHTML=`<p class="pempty">${!have?"読み取り済みの月がありません。「管理」から月の文字を読み取ってください。":q?"該当する人は見つかりませんでした。これまで一緒に勤務した記録はありません。":"まだ記録がありません。"}</p>`;return}
+  $("peopleList").innerHTML=ps.map(p=>{const t=tally(p.list),last=t.past[0]?.date||p.list[p.list.length-1]?.date;
+    return`<button class="prow" data-key="${esc(p.key)}"><span class="nm2">${esc(p.name||"（氏名なし）")}<span class="id">${esc(p.id)}</span></span><span class="last">${t.past.length?"最近 "+dLabel(t.past[0].date):"これから "+dLabel(t.fut[t.fut.length-1].date)}</span>
+      <span class="cnts">${t.flight?`<span class="cnt fl">フライト ${t.flight}</span>`:""}${t.sim?`<span class="cnt sm">SIM ${t.sim}</span>`:""}${t.other?`<span class="cnt">ほか ${t.other}</span>`:""}${t.fut.length?`<span class="cnt fu">予定 ${t.fut.length}</span>`:""}</span></button>`}).join("");
+  $("peopleList").querySelectorAll(".prow").forEach(b=>b.onclick=()=>showPerson(b.dataset.key));
+}
+function entryHTML(x,extra){const i=x.item,today=dStr(new Date());
+  return`<div class="tli"><div class="td"><b>${x.y!==new Date().getFullYear()?x.y+"/":""}${x.m}/${x.d}</b><span>${wdOf(x.date)}曜</span></div><div class="tb">
+    <div class="tj"><span class="kd ${x.kind}">${KLAB[x.kind]}</span><b>${esc(i.job)}</b>${i.place?`<span>${esc(x.kind==="flight"?i.place.replace("-"," → "):i.place)}</span>`:""}${x.draft?'<span class="kd draft">ドラフト</span>':""}${x.date>today?'<span class="kd future">これから</span>':""}</div>
+    <div class="tm">${[i.time&&i.time.replace("-","–"),extra,x.day.sty&&("滞在 "+x.day.sty)].filter(Boolean).map(esc).join(" · ")}</div></div></div>`}
+function showPerson(key){
+  const p=people().find(x=>x.key===key);if(!p)return;const t=tally(p.list);
+  const routes=new Map();t.past.filter(x=>x.kind==="flight").forEach(x=>{const r=x.item.place||x.item.job;routes.set(r,(routes.get(r)||0)+1)});
+  const stays=new Map();t.past.forEach(x=>{if(x.kind!=="flight")return;const nx=x.day.sty||(x.item.place.split("-")[1]);if(nx&&!/^(HND|NRT)$/.test(nx))stays.set(nx,(stays.get(nx)||0)+1)});
+  const first=t.past[t.past.length-1],last=t.past[0];
+  const roleStr=x=>`相手 ${x.role||"—"}${x.item.duty?` / 自分 ${x.item.duty}`:""}${x.note?` · ${x.note}`:""}`;
+  $("personView").innerHTML=`<div class="hero"><span class="hi">${esc(p.id||"社番なし")}</span><span class="hn">${esc(p.name||"")}</span>
+      <span class="hp">${t.past.length?`一緒の勤務 ${dLabel(first.date).replace(/（.）/,"")}${first.y!==last.y?"（"+first.y+"）":""} 〜 ${dLabel(last.date).replace(/（.）/,"")}`:"まだ一緒に勤務していません"}${p.names.size>1?` · 表記: ${[...p.names].map(esc).join(" / ")}`:""}</span></div>
+    <div class="tiles"><div class="tile"><b>${t.days}</b><span>一緒に勤務した日</span></div><div class="tile"><b>${t.flight}</b><span>一緒に飛んだ回数</span></div><div class="tile"><b>${t.sim+t.other}</b><span>訓練・会議ほか</span></div></div>
+    ${routes.size?`<div class="sect">一緒に行った路線</div><div class="routes">${[...routes].map(([r,n])=>`<span class="route">${esc(r.replace("-"," → "))}<small>${n}回</small></span>`).join("")}</div>`:""}
+    ${stays.size?`<div class="sect">一緒に行った先</div><div class="routes">${[...stays].map(([r,n])=>`<span class="route">${esc(r)}<small>${n}回</small></span>`).join("")}</div>`:""}
+    ${t.fut.length?`<div class="sect">これからの予定（${t.fut.length}）</div><div class="tl">${t.fut.slice().reverse().map(x=>entryHTML(x,roleStr(x))).join("")}</div>`:""}
+    <div class="sect">これまでの記録（${t.past.length}）</div><div class="tl">${t.past.length?t.past.map(x=>entryHTML(x,roleStr(x))).join(""):'<p class="pempty">まだありません</p>'}</div>`;
+  $("peopleView").hidden=true;$("personView").hidden=false;$("cBack").hidden=false;$("cTitle").textContent="クルーの記録";
+  $("crewScrim").querySelector(".sheet").scrollTop=0;
+}
+function renderFlights(){
+  const all=allItems().filter(x=>x.kind==="flight"),today=dStr(new Date());
+  const past=all.filter(x=>x.date<=today),fut=all.filter(x=>x.date>today);
+  const dest=new Map();past.forEach(x=>{const to=x.item.place.split("-")[1]||x.day.sty;if(to&&!/^(HND|NRT)$/.test(to))dest.set(to,(dest.get(to)||0)+1)});
+  const crewStr=x=>(x.item.crew||[]).map(c=>`${c.role} ${c.name||c.id}`).join("、");
+  $("flightView").innerHTML=`<div class="tiles"><div class="tile"><b>${past.length}</b><span>これまでのフライト</span></div><div class="tile"><b>${dest.size}</b><span>行った先</span></div><div class="tile"><b>${fut.length}</b><span>これからのフライト</span></div></div>
+    ${dest.size?`<div class="sect">行った先</div><div class="routes">${[...dest].sort((a,b)=>b[1]-a[1]).map(([r,n])=>`<span class="route">${esc(r)}<small>${n}回</small></span>`).join("")}</div>`:""}
+    ${fut.length?`<div class="sect">これから</div><div class="tl">${fut.slice().reverse().map(x=>entryHTML(x,[x.item.duty&&"自分 "+x.item.duty,crewStr(x)].filter(Boolean).join(" · "))).join("")}</div>`:""}
+    <div class="sect">これまで</div><div class="tl">${past.length?past.map(x=>entryHTML(x,[x.item.duty&&"自分 "+x.item.duty,crewStr(x)].filter(Boolean).join(" · "))).join(""):'<p class="pempty">読み取り済みの月にフライトはまだありません。</p>'}</div>`;
+}
+function crewTab(which){
+  const fl=which==="flights";$("tPeople").setAttribute("aria-selected",!fl);$("tFlights").setAttribute("aria-selected",fl);
+  $("peopleView").hidden=fl;$("flightView").hidden=!fl;$("personView").hidden=true;$("cBack").hidden=true;$("cTitle").textContent="クルー";
+  if(fl)renderFlights();else renderPeople();
+}
+function crewNote(){const n=months.filter(r=>r.data).length,miss=months.filter(r=>!r.data).length;
+  $("crewNote").textContent=`読み取り済み ${n}か月分の記録から集計しています。`+(miss?` 未読み取りの月が${miss}か月あります（「管理」から読み取れます）。`:"")+" フライトは便名・区間のある勤務、SIMは S で始まる訓練番号とFBSの勤務として数えています。"}
+$("openCrew").onclick=()=>{$("q").value="";crewTab("people");crewNote();$("crewScrim").hidden=false};
+$("q").addEventListener("input",renderPeople);
+$("tPeople").onclick=()=>crewTab("people");$("tFlights").onclick=()=>crewTab("flights");
+$("cBack").onclick=()=>crewTab("people");$("cClose").onclick=closeSheets;
+
+
+/* ---------- sync: cloud (your private space) <-> this device ---------- */
+const SYNC={db:null,assets:null,mcol:null,pcol:null,state:"local",last:0,busy:0,q:Promise.resolve(),started:false};
+const SYNC_TXT={local:IS_PWA?"端末内":"この端末",ok:"同期済み",busy:"同期中…",offline:"オフライン",error:"同期できません"};
+function setSync(st){SYNC.state=st;const el=$("sync");el.dataset.s=st;$("syncT").textContent=SYNC_TXT[st];el.title=SYNC_TXT[st];syncNote()}
+function syncNote(){const el=$("syncNote");if(!el)return;
+  if(IS_PWA){const lf=+(pref.get("roster-lastfile")||0);el.textContent=`このアプリはネットなしで動きます。データはこの端末に保存されています。${lf?"最後に同期ファイルを使ったのは "+fmt(lf)+"。":""}`;return}const t=SYNC.last?`最終同期 ${fmt(SYNC.last)}`:"まだ同期していません";
+  el.textContent={ok:`iPadとiPhoneで同期しています。${t}。`,busy:"同期しています…",offline:`オフラインです。この端末に残っている最新を表示しています（${t}）。ネットにつながると自動で更新を確認します。`,error:`同期できませんでした（${t}）。少し待つと自動でやり直します。`,local:"この画面ではクラウド同期が使えないため、この端末の中だけに保存しています。"}[SYNC.state]}
+const enqueue=fn=>(SYNC.q=SYNC.q.then(fn).catch(e=>{console.warn(e);if(!navigator.onLine)setSync("offline");else setSync("error")}));
+async function fetchAsset(id){try{const r=await fetch("/_blob/"+id);if(!r.ok)return null;return await r.blob()}catch(e){return null}}
+const revOf=x=>x?.rev??x?.updated??0;
+async function refreshUI(){
+  const before=JSON.stringify(months.map(m=>[m.ym,revOf(m)]));
+  months=(await dbAll()).sort((a,b)=>a.ym.localeCompare(b.ym));plans=await planAll();
+  const after=JSON.stringify(months.map(m=>[m.ym,revOf(m)]));
+  if(before!==after){if(months.some(m=>m.ym===cur))await select(cur,true);else if(months.length)await select(months.at(-1).ym);else renderTabs()}
+  renderInfo();renderSide();if(!$("plansScrim").hidden)renderPlanList();if(!$("manageScrim").hidden)renderManage();
+}
+async function pushMonth(l){
+  if(!SYNC.mcol)return;
+  if(!l.deleted&&!l.assetId){if(!SYNC.assets||!l.blob)return;const up=await SYNC.assets.upload(l.blob);l.assetId=up.id}
+  const body=l.deleted?{ym:l.ym,deleted:true,rev:revOf(l)}:{ym:l.ym,deleted:false,assetId:l.assetId,split:l.split??.5,updated:l.updated,rev:revOf(l),status:l.status,data:l.data||null,seed:!!l.seed};
+  await SYNC.mcol.doc(l.ym).set(body);l.dirty=false;await dbPut(l);
+}
+async function pushPlan(l){if(!SYNC.pcol)return;await SYNC.pcol.doc(l.id).set(l.deleted?{id:l.id,deleted:true,rev:revOf(l)}:{id:l.id,date:l.date,time:l.time||"",kind:l.kind,text:l.text,rev:revOf(l),deleted:false});l.dirty=false;await planPut(l)}
+async function reconcileMonths(docs){
+  const remote=new Map(docs.map(d=>[d.id,d.data()]));const locals=await dbAllRaw();
+  for(const[ym,r]of remote){const l=locals.find(x=>x.ym===ym);
+    if(!l||revOf(r)>revOf(l)){
+      if(r.deleted){await dbPut({ym,deleted:true,rev:r.rev,updated:0,dirty:false});continue}
+      const blob=(l&&l.assetId===r.assetId&&l.blob)?l.blob:await fetchAsset(r.assetId);
+      await dbPut({ym,assetId:r.assetId,blob:blob||null,split:r.split,updated:r.updated,rev:r.rev,status:r.status,data:r.data||null,seed:!!r.seed,dirty:false});
+    }else if(revOf(l)>revOf(r)){await pushMonth(l)}
+    else if(l.dirty||l.assetId!==r.assetId){l.assetId=r.assetId;l.dirty=false;if(!l.blob)l.blob=await fetchAsset(r.assetId);await dbPut(l)}}
+  for(const l of locals)if(!remote.has(l.ym))await pushMonth(l);
+}
+async function reconcilePlans(docs){
+  const remote=new Map(docs.map(d=>[d.id,d.data()]));const locals=await planAllRaw();
+  for(const[id,r]of remote){const l=locals.find(x=>x.id===id);
+    if(!l||revOf(r)>revOf(l))await planPut({...r,id,dirty:false});
+    else if(revOf(l)>revOf(r))await pushPlan(l);
+    else if(l.dirty){l.dirty=false;await planPut(l)}}
+  for(const l of locals)if(!remote.has(l.id))await pushPlan(l);
+}
+function onSnap(kind){return snap=>enqueue(async()=>{
+  if(snap.metadata.fromCache&&!navigator.onLine){setSync("offline");return}
+  setSync("busy");
+  if(kind==="m")await reconcileMonths(snap.docs.filter(d=>d.exists));else await reconcilePlans(snap.docs.filter(d=>d.exists));
+  SYNC.last=Date.now();pref.set("roster-lastsync",String(SYNC.last));
+  setSync(navigator.onLine?"ok":"offline");await refreshUI();
+})}
+async function initSync(){
+  if(SYNC.started)return;SYNC.started=true;
+  SYNC.last=+(pref.get("roster-lastsync")||0);
+  if(!navigator.onLine)setSync("offline");
+  const c=window.claude;if(!c?.use){setSync("local");return}
+  const[db,user,assets]=await Promise.all([c.use("db"),c.use("user"),c.use("assets")].map(p=>p.catch(()=>null)));
+  if(!db||!user){setSync(navigator.onLine?"local":"offline");SYNC.started=false;return}
+  const uid=await user.id().catch(()=>null);if(!uid){setSync("local");return}
+  SYNC.db=db;SYNC.assets=assets;
+  const root=db.doc(`data/users/${uid}/app/roster`);
+  SYNC.mcol=root.collection("months");SYNC.pcol=root.collection("plans");
+  const err=e=>{setSync(navigator.onLine?"error":"offline");if(e?.code==="unavailable"){SYNC.started=false;setTimeout(initSync,15000)}};
+  SYNC.mcol.onSnapshot(onSnap("m"),err);SYNC.pcol.onSnapshot(onSnap("p"),err);
+}
+function kickSync(){if(!SYNC.mcol)return;if(!navigator.onLine){setSync("offline");return}enqueue(async()=>{setSync("busy");
+  for(const l of await dbAllRaw())if(l.dirty)await pushMonth(l);
+  for(const l of await planAllRaw())if(l.dirty)await pushPlan(l);
+  SYNC.last=Date.now();pref.set("roster-lastsync",String(SYNC.last));setSync(navigator.onLine?"ok":"offline")})}
+function kickSyncSoon(){setTimeout(kickSync,400)}
+addEventListener("online",()=>{if(SYNC.mcol)kickSync();else initSync()});
+addEventListener("offline",()=>setSync("offline"));
+setInterval(()=>{if(navigator.onLine&&SYNC.mcol)kickSync()},120000);
+
+/* ---------- offline copy: one static page you can open without the app ---------- */
+async function buildOffline(){
+  const parts=[];
+  const nowYm=ymStr(new Date()),ord=r=>r.ym===nowYm?0:r.ym>nowYm?1:2;
+  for(const r of months.slice().sort((a,b)=>ord(a)-ord(b)||(ord(a)===2?b.ym.localeCompare(a.ym):a.ym.localeCompare(b.ym)))){
+    if(!r.blob)continue;const im=await loadBlobImg(r.blob);const c=toCanvas(im);
+    const src=c.toDataURL("image/jpeg",.85);const{y,m}=ymLabel(r.ym);const ps=monthPlans(r.ym);
+    parts.push(`<section><h2>${y}年${m}月 <span class="${r.status==="draft"?"d":"f"}">${r.status==="draft"?"ドラフト（作成中）":"確定"}</span></h2><p class="u">取込 ${fmt(r.updated)}</p>
+      ${ps.length?`<ul>${ps.map(p=>`<li><b>${dLabel(p.date)}</b> ${KIND[p.kind]} ${p.time||""} ${esc(p.text)}</li>`).join("")}</ul>`:""}<img src="${src}" alt="${y}年${m}月の勤務"></section>`);
+  }
+  return`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>勤務スケジュール（オフライン用）</title>
+<style>body{margin:0;font-family:-apple-system,"Hiragino Sans",sans-serif;background:#eef3f9;color:#0d1b33}header{background:#0b3c8c;color:#fff;padding:16px;box-shadow:inset 0 -4px 0 #2aa0dc}h1{margin:0;font-size:18px}header p{margin:4px 0 0;font-size:12px;color:#bcd6f2}section{padding:16px}h2{font-size:20px;color:#0b3c8c;margin:0 0 4px}h2 span{font-size:12px;padding:2px 8px;border-radius:999px;vertical-align:middle}.f{background:#d8eefa;color:#0b6c9c}.d{background:#f2a93b;color:#2b1a00}.u{font-size:12px;color:#6a7a92;margin:0 0 8px}ul{background:#fff;border-radius:10px;padding:10px 10px 10px 28px;font-size:14px}img{width:100%;height:auto;display:block;border-radius:4px;box-shadow:0 2px 10px rgba(13,27,51,.15)}</style></head>
+<body><header><h1>勤務スケジュール（オフライン用）</h1><p>${fmt(Date.now())} 時点の内容です。今月、これからの月、過去の月の順に並んでいます。</p></header>${parts.join("")}</body></html>`;
+}
+$("offlineSave").onclick=async()=>{
+  const b=$("offlineSave");b.disabled=true;b.textContent="作成中…";
+  try{if(dl===undefined){try{dl=await window.claude?.use?.("downloads")??null}catch(e){dl=null}}
+    if(!dl){toast("この画面では保存できません");return}
+    const html=await buildOffline();await dl.save({filename:`勤務スケジュール_オフライン_${dStr(new Date())}.html`,data:html});toast("オフライン用のファイルを保存しました")}
+  catch(e){if(e?.code!=="declined")toast("保存できませんでした")}
+  finally{b.disabled=false;b.textContent="オフライン用に保存"}
+};
+
+
+/* ---------- iPad panel ---------- */
+const sideFits=()=>innerWidth>=700;
+function sideWanted(){const p=pref.get("roster-side");if(p==="1")return true;if(p==="0")return false;return innerWidth>=1000&&innerWidth>innerHeight}
+function applySide(){
+  const fits=sideFits();$("sideBtn").hidden=!fits;
+  const on=fits&&sideWanted();document.documentElement.classList.toggle("has-side",on);$("side").hidden=!on;$("sideBtn").setAttribute("aria-pressed",on);
+  if(on)renderSide();
+}
+$("sideBtn").onclick=()=>{const on=!document.documentElement.classList.contains("has-side");pref.set("roster-side",on?"1":"0");applySide();userMode=null;layout(false)};
+function daySummary(d){
+  const its=d.items||[];const fl=its.filter(isFlight);
+  const jobs=[...new Set(its.map(i=>i.job).filter(Boolean))];
+  const off=its.length&&its.every(i=>/^(OFF\d?|VAC|BD\d?|SL\d?|IVL\d?)$/.test(i.job));
+  const time=d.on||d.off?`${d.on||"—"}–${d.off||"—"}`:"";
+  return{jobs,fl,off,time};
+}
+function renderSide(){
+  const el=$("side");if(el.hidden)return;
+  const r=months.find(m=>m.ym===cur);if(!r){el.innerHTML='<p class="sd-empty">この月のスケジュールはまだありません。</p>';return}
+  const{y,m}=ymLabel(cur),dr=r.status==="draft",today=dStr(new Date());
+  let html=`<div class="sd-head"><b>${m}</b><span>月</span><span class="status ${dr?"st-draft":"st-final2"}">${dr?"ドラフト":"確定"}</span></div>`;
+  if(!r.data){el.innerHTML=html+`<p class="sd-empty">この月の文字データがまだないため、日ごとの一覧は出せません。「管理」から「読み取る」を押すと表示されます。</p>`;return}
+  const days=r.data.days,ps=monthPlans(cur);
+  const td=today.startsWith(cur)?days.find(d=>d.d===+today.slice(8)):null;
+  if(td){const s=daySummary(td);html+=`<div class="sd-today"><span class="l">今日 ${dLabel(today)}</span><span class="j">${esc(s.jobs.join(" · ")||"予定なし")}</span><span class="t">${esc([s.time,s.fl.map(i=>i.place).join(" / "),td.sty&&"滞在 "+td.sty].filter(Boolean).join(" · "))}</span></div>`}
+  const cnt=k=>days.reduce((a,d)=>a+(d.items||[]).filter(i=>kindOf(i)===k).length,0);
+  const offs=days.filter(d=>daySummary(d).off).length;
+  html+=`<div class="sd-stats"><div><b>${days.filter(d=>d.on||d.off).length}</b><span>勤務日</span></div><div><b>${cnt("flight")}</b><span>フライト</span></div><div><b>${cnt("sim")}</b><span>SIM</span></div><div><b>${offs}</b><span>休み</span></div></div>`;
+  html+='<div class="sd-list">'+days.map(d=>{const ds=`${cur}-${pad2(d.d)}`,w=parseD(ds).getDay(),s=daySummary(d),pl=ps.filter(p=>p.date===ds);
+    const fl=s.fl.map(i=>`<span class="kd flight">${esc(i.job)} ${esc(i.place.replace("-","→"))}</span>`).join("");
+    return`<div class="sd-day${ds===today?" today":""}${ds<today?" past":""}${s.off?" off":""}" id="sd${d.d}"><div class="sd-d ${w===6?"sat":w===0?"sun":""}"><b>${d.d}</b><span>${WD[w]}</span></div><div class="sd-b">
+      <span class="sj">${esc(s.jobs.join(" · ")||"—")}${fl}</span>${s.time||d.sty?`<span class="st">${esc([s.time,d.sty&&"滞在 "+d.sty].filter(Boolean).join(" · "))}</span>`:""}
+      ${pl.map(p=>`<span class="sp">${KIND[p.kind]} ${p.time?p.time+" ":""}${esc(p.text)}</span>`).join("")}</div></div>`}).join("")+'</div>';
+  el.innerHTML=html;
+  const t=el.querySelector(".sd-day.today");if(t)t.scrollIntoView({block:"center"});
+}
+
+
+/* ---------- sync file (iCloud Drive etc.) ---------- */
+let fsBlob=null;
+async function makeSyncFile(){
+  const ms=[];for(const r of await dbAllRaw()){const o={...r};delete o.blob;delete o.dirty;if(r.blob)o.image=await toDataURL(r.blob);ms.push(o)}
+  const ps=(await planAllRaw()).map(p=>{const o={...p};delete o.dirty;return o});
+  return new Blob([JSON.stringify({app:"b787-roster",v:1,exported:Date.now(),months:ms,plans:ps})],{type:"application/json"});
+}
+function dataURLtoBlob(u){const[h,b]=u.split(",");const mime=(h.match(/data:([^;]+)/)||[])[1]||"application/octet-stream";const bin=atob(b);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type:mime})}
+async function importSyncFile(text){
+  const j=JSON.parse(text);if(j.app!=="b787-roster")throw new Error("format");
+  let nm=0,np=0;const locals=await dbAllRaw(),lp=await planAllRaw();
+  for(const r of j.months||[]){const l=locals.find(x=>x.ym===r.ym);if(l&&revOf(l)>=revOf(r))continue;
+    const rec={...r};delete rec.image;rec.blob=r.image?dataURLtoBlob(r.image):null;rec.dirty=!IS_PWA;if(!IS_PWA)delete rec.assetId;await dbPut(rec);nm++}
+  for(const p of j.plans||[]){const l=lp.find(x=>x.id===p.id);if(l&&revOf(l)>=revOf(p))continue;await planPut({...p,dirty:!IS_PWA});np++}
+  pref.set("roster-lastfile",String(Date.now()));
+  return{nm,np};
+}
+$("fsMake").onclick=async()=>{
+  const b=$("fsMake"),msg=$("fsMsg");
+  if(!fsBlob){b.disabled=true;b.textContent="作成中…";msg.textContent="";
+    try{fsBlob=await makeSyncFile();await getDl();b.textContent=`保存する（約${Math.max(1,Math.round(fsBlob.size/1048576))}MB）`;msg.textContent="「保存する」を押して、iCloud Driveに保存してください。"}
+    catch(e){b.textContent="同期ファイルを作る";msg.textContent="作れませんでした。もう一度お試しください。"}
+    b.disabled=false;return}
+  try{const name=`勤務スケジュール_同期_${dStr(new Date())}.json`;await saveFile(name,fsBlob,"application/json");pref.set("roster-lastfile",String(Date.now()));msg.textContent="同期ファイルを保存しました。もう一方の端末で読み込んでください。";syncNote()}
+  catch(e){if(e?.code!=="declined")msg.textContent="保存できませんでした。"}
+  finally{fsBlob=null;b.textContent="同期ファイルを作る"}
+};
+$("fsLoad").addEventListener("change",async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;const msg=$("fsMsg");msg.textContent="読み込んでいます…";
+  try{const{nm,np}=await importSyncFile(await f.text());await refreshUI();if(cur&&months.some(m=>m.ym===cur))await select(cur);else if(months.length)await select(nearMonth());
+    msg.textContent=nm||np?`${nm}か月分と予定${np}件を更新しました。`:"この端末の方が新しいため、変更はありませんでした。";renderManage();kickSync();syncNote()}
+  catch(err){msg.textContent="同期ファイルとして読み込めませんでした。保存したファイルを選び直してください。"}
+});
+function nearMonth(){const now=ymStr(new Date());if(months.some(m=>m.ym===now))return now;return months.reduce((a,b)=>Math.abs(ymNum(b.ym)-ymNum(now))<Math.abs(ymNum(a.ym)-ymNum(now))?b:a).ym}
+
+/* ---------- home-screen app (PWA) ---------- */
+if(IS_PWA){
+  $("offlineSave").hidden=true;$("storeNote").textContent="データはこの端末の中に保存されます。";
+  if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
+}
+
+/* ---------- boot ---------- */
+(async()=>{
+  months=(await dbAll()).sort((a,b)=>a.ym.localeCompare(b.ym));plans=await planAll();
+  if(pref.get("roster-seed-v")!=="3"){
+    for(const sd of SEEDS){const ex=months.find(m=>m.ym===sd.ym);if(ex&&ex.data)continue;
+      const c=toCanvas(await loadImg(sd.src));
+      await dbPut({ym:sd.ym,blob:await toBlob(c),split:findSplit(c),updated:SEED_TS,rev:SEED_TS,dirty:true,status:sd.status,data:SEED_DATA[sd.ym],seed:true})}
+    months=(await dbAll()).sort((a,b)=>a.ym.localeCompare(b.ym));pref.set("roster-seed-v","3");
+  }
+  for(const r of months){const st=ruleStatus(r.ym,r.updated);if(r.status!==st){r.status=st;await dbPut(r)}}
+  // 開いた日の月を最初に表示する（なければ一番近い月）
+  const now=ymStr(new Date());
+  const near=months.length?months.reduce((a,b)=>Math.abs(ymNum(b.ym)-ymNum(now))<Math.abs(ymNum(a.ym)-ymNum(now))?b:a).ym:now;
+  applySide();
+  await select(months.some(m=>m.ym===now)?now:near);
+  initSync();
+})();
+</script>
+
+</body></html>
