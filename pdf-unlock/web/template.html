@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; connect-src data:">
+<title>PDFロック解除</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--ink:#14213d;--muted:#667389;--line:#d5dce8;--accent:#0b5cd5;--ok:#1a7f4b;--ng:#c0392b;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#10151f;--card:#1a2230;--ink:#e8edf6;--muted:#93a0b6;--line:#2c374a;--accent:#5b9bff;--ok:#4cc38a;--ng:#ff7b6b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Hiragino Sans","Yu Gothic UI",sans-serif}
+main{max-width:640px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 20px;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+#drop{border:2px dashed var(--line);border-radius:12px;padding:32px 16px;text-align:center;cursor:pointer;transition:.15s}
+#drop.over,#drop:focus-visible{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent);outline:none}
+#drop b{display:block;font-size:18px}
+#drop span{color:var(--muted);font-size:14px}
+label{display:block;font-weight:600;font-size:14px;margin-bottom:4px}
+input[type=password],input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+.hint{color:var(--muted);font-size:13px;margin:6px 0 0}
+button,a.btn{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;text-decoration:none;display:inline-block}
+button.sec{background:transparent;color:var(--accent)}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line)}
+li:first-child{border-top:0}
+.name{min-width:0;overflow-wrap:anywhere}
+.st{font-size:13px;color:var(--muted)}
+.st.ok{color:var(--ok)}.st.ng{color:var(--ng)}
+.safe{font-size:13px;color:var(--muted)}
+</style></head><body><main>
+<h1>PDFロック解除</h1>
+<p class="sub">パスワードを知っているPDFを、パスワードなしのPDFに変換します。</p>
+
+<div class="card">
+  <label for="pw">パスワード（開くのに必要な場合のみ）</label>
+  <input id="pw" type="password" autocomplete="off" placeholder="不要なら空のままで構いません">
+  <p class="hint">印刷・コピー・編集の制限だけのPDFは、パスワード不要で解除できます。</p>
+</div>
+
+<div id="drop" class="card" tabindex="0" role="button" aria-label="PDFファイルを選ぶ">
+  <b>ここにPDFをドロップ</b><span>またはクリックして選ぶ（複数可）</span>
+  <input id="file" type="file" accept="application/pdf,.pdf" multiple hidden>
+</div>
+
+<div id="listcard" class="card" hidden>
+  <ul id="list"></ul>
+  <p style="margin:12px 0 0"><button id="retry" class="sec" hidden>パスワードを入れて、もう一度試す</button></p>
+</div>
+
+<p class="safe">🔒 処理はすべてこの端末の中で行われ、PDFもパスワードも外部には送信されません（通信は禁止されています）。自分が編集する権利のあるPDFにのみ使ってください。</p>
+</main>
+
+<script>globalThis.exports={};</script>
+<script>/*__QPDF_JS__*/</script>
+<script>
+"use strict";
+const WASM_B64="/*__QPDF_WASM__*/";
+const $=id=>document.getElementById(id);
+const items=[];                      // {file,li,st,action,state,blob}
+
+// qpdf を1回実行する。毎回新しいインスタンスを使う（終了処理の影響を残さないため）。
+async function qpdf(bytes,args){
+  const mod=await exports.Module({locateFile:()=>"data:application/octet-stream;base64,"+WASM_B64,noInitialRun:true,print:()=>{},printErr:()=>{}});
+  mod.FS.writeFile("/in.pdf",bytes);
+  let code=0;
+  try{const r=mod.callMain(args);if(typeof r==="number")code=r}
+  catch(e){code=(e&&typeof e.status==="number")?e.status:1}
+  let out=null;try{out=mod.FS.readFile("/out.pdf")}catch{}
+  return {code,out};
+}
+const pwArg=pw=>pw?["--password="+pw]:[];
+
+async function runQpdf(bytes,password){
+  const r=await qpdf(bytes,[...pwArg(password),"--decrypt","/in.pdf","/out.pdf"]);
+  if(r.out&&r.code!==2)return {ok:true,out:r.out};   // 0=成功 3=警告つきで成功
+  // 失敗: 暗号化されたPDFなら、パスワードの問題とみなす（qpdfの終了コードでは壊れたファイルと区別できないため）
+  const head=new TextDecoder("latin1").decode(bytes);
+  return {ok:false,badpw:head.startsWith("%PDF-")&&head.includes("/Encrypt")};
+}
+
+async function process(it){
+  it.st.className="st";it.st.textContent="処理中…";it.action.replaceChildren();
+  try{
+    const bytes=new Uint8Array(await it.file.arrayBuffer());
+    const r=await runQpdf(bytes,$("pw").value);
+    if(r.ok){
+      const url=URL.createObjectURL(new Blob([r.out],{type:"application/pdf"}));
+      const a=document.createElement("a");a.className="btn";a.href=url;a.textContent="保存";
+      a.download=it.file.name.replace(/\.pdf$/i,"")+"_unlocked.pdf";
+      it.action.replaceChildren(a);it.st.className="st ok";it.st.textContent="解除しました";it.state="ok";
+    }else if(r.badpw){
+      it.st.className="st ng";it.st.textContent=$("pw").value?"パスワードが違います":"パスワードが必要です";it.state="pw";
+    }else{
+      it.st.className="st ng";it.st.textContent="PDFを読み込めませんでした";it.state="ng";
+    }
+  }catch(e){it.st.className="st ng";it.st.textContent="エラー: "+(e&&e.message||e);it.state="ng"}
+  $("retry").hidden=!items.some(i=>i.state==="pw");
+}
+
+async function add(files){
+  const pdfs=[...files].filter(f=>/\.pdf$/i.test(f.name)||f.type==="application/pdf");
+  if(!pdfs.length)return;
+  $("listcard").hidden=false;
+  for(const file of pdfs){
+    const li=document.createElement("li"),left=document.createElement("div"),name=document.createElement("div"),st=document.createElement("div"),action=document.createElement("div");
+    name.className="name";name.textContent=file.name;left.append(name,st);li.append(left,action);$("list").append(li);
+    const it={file,st,action,state:"",li};items.push(it);await process(it);
+  }
+}
+
+$("retry").onclick=async()=>{for(const it of items.filter(i=>i.state==="pw"))await process(it)};
+$("pw").addEventListener("keydown",e=>{if(e.key==="Enter"&&!$("retry").hidden)$("retry").click()});
+const drop=$("drop");
+drop.onclick=()=>$("file").click();
+drop.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();$("file").click()}};
+$("file").onchange=e=>{add(e.target.files);e.target.value=""};
+["dragenter","dragover"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add("over")}));
+["dragleave","drop"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove("over")}));
+drop.addEventListener("drop",e=>add(e.dataTransfer.files));
+window.addEventListener("dragover",e=>e.preventDefault());window.addEventListener("drop",e=>e.preventDefault());
+</script></body></html>
