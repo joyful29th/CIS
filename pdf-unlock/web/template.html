@@ -1,14 +1,12 @@
-<!doctype html>
-<html lang="ja"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; connect-src data:">
 <title>PDFロック解除</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <style>
-:root{--bg:#f4f6fa;--card:#fff;--ink:#14213d;--muted:#667389;--line:#d5dce8;--accent:#0b5cd5;--ok:#1a7f4b;--ng:#c0392b;color-scheme:light dark}
-@media(prefers-color-scheme:dark){:root{--bg:#10151f;--card:#1a2230;--ink:#e8edf6;--muted:#93a0b6;--line:#2c374a;--accent:#5b9bff;--ok:#4cc38a;--ng:#ff7b6b}}
+:root{--bg:#f4f6fa;--card:#fff;--ink:#14213d;--muted:#667389;--line:#d5dce8;--accent:#0b5cd5;--ok:#1a7f4b;--ng:#c0392b}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10151f;--card:#1a2230;--ink:#e8edf6;--muted:#93a0b6;--line:#2c374a;--accent:#5b9bff;--ok:#4cc38a;--ng:#ff7b6b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#10151f;--card:#1a2230;--ink:#e8edf6;--muted:#93a0b6;--line:#2c374a;--accent:#5b9bff;--ok:#4cc38a;--ng:#ff7b6b;color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,-apple-system,"Hiragino Sans","Yu Gothic UI",sans-serif}
-main{max-width:640px;margin:0 auto;padding:24px 16px 48px}
+main{max-width:640px;margin:0 auto;padding-block:24px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 h1{font-size:22px;margin:0 0 4px}
 .sub{color:var(--muted);margin:0 0 20px;font-size:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
@@ -19,6 +17,7 @@ h1{font-size:22px;margin:0 0 4px}
 label{display:block;font-weight:600;font-size:14px;margin-bottom:4px}
 input[type=password],input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
 .hint{color:var(--muted);font-size:13px;margin:6px 0 0}
+button:focus-visible,a.btn:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button,a.btn{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;text-decoration:none;display:inline-block}
 button.sec{background:transparent;color:var(--accent)}
 ul{list-style:none;margin:0;padding:0}
@@ -28,7 +27,8 @@ li:first-child{border-top:0}
 .st{font-size:13px;color:var(--muted)}
 .st.ok{color:var(--ok)}.st.ng{color:var(--ng)}
 .safe{font-size:13px;color:var(--muted)}
-</style></head><body><main>
+</style>
+<main>
 <h1>PDFロック解除</h1>
 <p class="sub">パスワードを知っているPDFを、パスワードなしのPDFに変換します。</p>
 
@@ -48,7 +48,7 @@ li:first-child{border-top:0}
   <p style="margin:12px 0 0"><button id="retry" class="sec" hidden>パスワードを入れて、もう一度試す</button></p>
 </div>
 
-<p class="safe">🔒 処理はすべてこの端末の中で行われ、PDFもパスワードも外部には送信されません（通信は禁止されています）。自分が編集する権利のあるPDFにのみ使ってください。</p>
+<p class="safe">処理はすべてこの端末の中で行われ、PDFもパスワードも外部には送信されません。自分が編集する権利のあるPDFにのみ使ってください。</p>
 </main>
 
 <script>globalThis.exports={};</script>
@@ -57,11 +57,18 @@ li:first-child{border-top:0}
 "use strict";
 const WASM_B64="/*__QPDF_WASM__*/";
 const $=id=>document.getElementById(id);
-const items=[];                      // {file,li,st,action,state,blob}
+const items=[];
+let wasmBytes=null;
+function wasm(){
+  if(!wasmBytes){const t=atob(WASM_B64),a=new Uint8Array(t.length);for(let i=0;i<t.length;i++)a[i]=t.charCodeAt(i);wasmBytes=a}
+  return wasmBytes;
+}
+// Claude の Artifact 内では downloads 機能で保存する（通常のダウンロードリンクは使えないため）
+const downloadsReady=window.claude?.use?window.claude.use("downloads").catch(()=>null):Promise.resolve(null);                      // {file,li,st,action,state,blob}
 
 // qpdf を1回実行する。毎回新しいインスタンスを使う（終了処理の影響を残さないため）。
 async function qpdf(bytes,args){
-  const mod=await exports.Module({locateFile:()=>"data:application/octet-stream;base64,"+WASM_B64,noInitialRun:true,print:()=>{},printErr:()=>{}});
+  const mod=await exports.Module({instantiateWasm:(imports,done)=>{WebAssembly.instantiate(wasm(),imports).then(r=>done(r.instance,r.module));return {}},noInitialRun:true,print:()=>{},printErr:()=>{}});
   mod.FS.writeFile("/in.pdf",bytes);
   let code=0;
   try{const r=mod.callMain(args);if(typeof r==="number")code=r}
@@ -85,10 +92,16 @@ async function process(it){
     const bytes=new Uint8Array(await it.file.arrayBuffer());
     const r=await runQpdf(bytes,$("pw").value);
     if(r.ok){
-      const url=URL.createObjectURL(new Blob([r.out],{type:"application/pdf"}));
-      const a=document.createElement("a");a.className="btn";a.href=url;a.textContent="保存";
-      a.download=it.file.name.replace(/\.pdf$/i,"")+"_unlocked.pdf";
-      it.action.replaceChildren(a);it.st.className="st ok";it.st.textContent="解除しました";it.state="ok";
+      const blob=new Blob([r.out],{type:"application/pdf"}),filename=it.file.name.replace(/\.pdf$/i,"")+"_unlocked.pdf";
+      const dl=await downloadsReady;
+      let btn;
+      if(dl){
+        btn=document.createElement("button");btn.type="button";btn.textContent="保存";
+        btn.onclick=()=>dl.save({filename,data:blob}).then(()=>{it.st.textContent="保存しました"},e=>{if(e&&e.code!=="declined")it.st.textContent="保存できませんでした（"+(e.code||e)+"）"});
+      }else{
+        btn=document.createElement("a");btn.className="btn";btn.href=URL.createObjectURL(blob);btn.download=filename;btn.textContent="保存";
+      }
+      it.action.replaceChildren(btn);it.st.className="st ok";it.st.textContent="解除しました";it.state="ok";
     }else if(r.badpw){
       it.st.className="st ng";it.st.textContent=$("pw").value?"パスワードが違います":"パスワードが必要です";it.state="pw";
     }else{
@@ -119,4 +132,4 @@ $("file").onchange=e=>{add(e.target.files);e.target.value=""};
 ["dragleave","drop"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove("over")}));
 drop.addEventListener("drop",e=>add(e.dataTransfer.files));
 window.addEventListener("dragover",e=>e.preventDefault());window.addEventListener("drop",e=>e.preventDefault());
-</script></body></html>
+</script>
