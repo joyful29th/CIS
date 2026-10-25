@@ -8,12 +8,15 @@
 使い方:
   python pdf_unlock.py 入力.pdf                  -> 入力_unlocked.pdf を作成
   python pdf_unlock.py 入力.pdf -o 出力.pdf
-  python pdf_unlock.py 入力.pdf -p パスワード
+  python pdf_unlock.py 入力.pdf                  -> パスワードが必要なら画面で入力を求める（表示されない）
+  python pdf_unlock.py 入力.pdf -p パスワード    -> 入力を省略したいとき
   python pdf_unlock.py フォルダ/                 -> フォルダ内の全PDFを処理
 
 自分が所有する、または編集する権利のあるPDFにのみ使用してください。
 """
 import argparse
+import getpass
+import os
 import sys
 from pathlib import Path
 
@@ -28,9 +31,17 @@ def unlock(src: Path, dst: Path, password: str | None) -> str:
     if was_encrypted:
         # 空パスワードで開ければ所有者制限のみ。開けなければ指定パスワードを使う。
         if reader.decrypt("") == 0:
-            if not password:
-                raise PermissionError("開くのにパスワードが必要です（-p で指定してください）")
-            if reader.decrypt(password) == 0:
+            if not password and sys.stdin.isatty():
+                # 画面に表示されない入力で、3回まで試せる
+                for _ in range(3):
+                    password = getpass.getpass(f"{src.name} のパスワード: ")
+                    if reader.decrypt(password) != 0:
+                        break
+                else:
+                    raise PermissionError("パスワードが違います")
+            elif not password:
+                raise PermissionError("開くのにパスワードが必要です（-p か環境変数 PDF_PASSWORD で指定してください）")
+            elif reader.decrypt(password) == 0:
                 raise PermissionError("パスワードが違います")
     writer = PdfWriter(clone_from=reader)  # 暗号化せずに書き出す＝制限なし
     with open(dst, "wb") as f:
@@ -42,7 +53,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="PDFの制限（シークレット機能）を解除します")
     ap.add_argument("input", type=Path, help="PDFファイル、またはPDFの入ったフォルダ")
     ap.add_argument("-o", "--output", type=Path, help="出力先（ファイル入力時のみ）")
-    ap.add_argument("-p", "--password", help="開くためのパスワード（知っている場合のみ）")
+    ap.add_argument("-p", "--password", default=os.environ.get("PDF_PASSWORD"),
+                    help="開くためのパスワード（省略すると入力を求められます。環境変数 PDF_PASSWORD でも可）")
     args = ap.parse_args()
 
     if args.input.is_dir():
